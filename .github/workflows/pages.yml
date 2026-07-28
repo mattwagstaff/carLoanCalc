@@ -43,11 +43,16 @@ jobs:
           echo "Publishing:"
           ls -la _site
 
-      # enablement: true switches GitHub Pages on via the API if it is not
-      # already enabled, so there is nothing to click in repository settings.
+      # Pages must already be enabled with "GitHub Actions" as the source:
+      #   Settings -> Pages -> Build and deployment -> Source: GitHub Actions
+      #
+      # This is a one-time manual step. configure-pages has an `enablement: true`
+      # option that creates the Pages site over the API, but it fails with the
+      # default GITHUB_TOKEN — that token's `pages: write` permission covers
+      # deploying to an existing site, not creating one, which needs repo admin
+      # rights. Using it would mean minting and storing a personal access token
+      # purely to save a single click, so it is deliberately not used.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
