@@ -48,6 +48,13 @@
     NT: { registrationCost: 700, ctpCost: 400, annualRegistration: 1100 }
   };
 
+  // How long ago the electric vehicle FBT exemption started. A used EV first
+  // held before this does not qualify, however cheap it is.
+  var EV_EXEMPTION_START = new Date('2022-07-01T00:00:00Z');
+  function yearsSinceEvExemption() {
+    return (Date.now() - EV_EXEMPTION_START.getTime()) / (365.25 * 24 * 3600 * 1000);
+  }
+
   var is = {
     ev: function (s) { return s.fuelType === 'ev'; },
     liquidFuel: function (s) { return s.fuelType !== 'ev'; },
@@ -58,28 +65,37 @@
     business: function (s) { return s.product === 'chattel' || s.product === 'financeLease'; },
     gfv: function (s) { return s.product === 'gfv'; },
     // GFV sets its own residual, so the generic balloon controls do not apply.
-    balloonable: function (s) { return is.loanProduct(s) && s.product !== 'gfv'; }
+    balloonable: function (s) { return is.loanProduct(s) && s.product !== 'gfv'; },
+    used: function (s) { return s.vehicleCondition === 'used'; },
+    // Dealer delivery and factory options are charges on a first sale. A used
+    // car's advertised price already has them baked in.
+    firstSale: function (s) { return s.vehicleCondition !== 'used'; },
+    driveAway: function (s) { return s.priceBasis === 'driveaway'; }
   };
 
   var GROUPS = [
     {
       id: 'vehicle', title: 'Vehicle & purchase', open: true,
-      blurb: 'Start with the advertised price. Revvy adds luxury car tax and state duty for you.',
+      blurb: 'Start with the advertised price. Tell Revvy whether that figure already includes ' +
+        'on-road costs, and whether the car is new or used — both change what applies.',
       fields: [
-        { id: 'vehiclePrice', label: 'Vehicle price', type: 'number', prefix: '$', def: 45000, step: 500, min: 0, help: 'Purchase price including GST, before on-road costs.' },
-        { id: 'state', label: 'State or territory', type: 'select', def: 'NSW', options: R.STATES.map(function (s) { return [s, s]; }), help: 'Stamp duty is a state tax and varies significantly.' },
-        { id: 'fuelType', label: 'Fuel type', type: 'select', def: 'petrol', options: [['petrol', 'Petrol'], ['diesel', 'Diesel'], ['hybrid', 'Hybrid'], ['phev', 'Plug-in hybrid'], ['ev', 'Electric']] },
+        { id: 'vehicleCondition', label: 'New or used?', type: 'select', def: 'new', simple: true, options: [['new', 'New'], ['demo', 'Demonstrator'], ['used', 'Used']], help: 'Changes what applies: luxury car tax, dealer delivery, GFV and depreciation all differ.' },
+        { id: 'vehicleAge', label: 'Age of the vehicle', type: 'number', suffix: 'years', def: 3, step: 1, min: 0, max: 30, simple: true, showIf: is.used, help: 'Used for depreciation, and for electric vehicle FBT eligibility.' },
+        { id: 'vehiclePrice', label: 'Purchase price', type: 'number', prefix: '$', def: 45000, step: 500, min: 0, simple: true, help: 'Including GST.' },
+        { id: 'priceBasis', label: 'That price is', type: 'select', def: 'beforeOnRoads', simple: true, options: [['beforeOnRoads', 'Before on-road costs'], ['driveaway', 'Drive-away — includes on-roads']], help: 'Drive-away prices are worked backwards to separate duty and registration.' },
+        { id: 'state', label: 'State or territory', type: 'select', def: 'NSW', simple: true, options: R.STATES.map(function (s) { return [s, s]; }), help: 'Stamp duty is a state tax and varies significantly.' },
+        { id: 'fuelType', label: 'Fuel type', type: 'select', def: 'petrol', simple: true, options: [['petrol', 'Petrol'], ['diesel', 'Diesel'], ['hybrid', 'Hybrid'], ['phev', 'Plug-in hybrid'], ['ev', 'Electric']] },
         { id: 'vehicleType', label: 'Vehicle class', type: 'select', def: 'passenger', options: [['passenger', 'Passenger'], ['commercial', 'Commercial / ute / van']] },
         { id: 'cylinders', label: 'Cylinders', type: 'number', def: 4, min: 1, max: 12, step: 1, showIf: is.qld, help: 'Queensland duty depends on cylinder count.' },
         { id: 'actRating', label: 'ACT emissions rating', type: 'select', def: 'C', options: [['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']], showIf: is.act, help: 'ACT duty is based on the vehicle emissions rating.' },
-        { id: 'dealerDelivery', label: 'Dealer delivery', type: 'number', prefix: '$', def: 2000, step: 100, min: 0 },
-        { id: 'optionsAndAccessories', label: 'Options & accessories', type: 'number', prefix: '$', def: 0, step: 250, min: 0, help: 'Counts towards LCT, duty and the FBT base value.' },
+        { id: 'dealerDelivery', label: 'Dealer delivery', type: 'number', prefix: '$', def: 2000, step: 100, min: 0, showIf: is.firstSale, help: 'Charged on a first sale. Not applicable to a used car.' },
+        { id: 'optionsAndAccessories', label: 'Options & accessories', type: 'number', prefix: '$', def: 0, step: 250, min: 0, showIf: is.firstSale, help: 'Counts towards LCT, duty and the FBT base value.' },
         { id: 'registrationCost', label: 'Registration (first year)', type: 'number', prefix: '$', def: 400, step: 50, min: 0, auto: 'onroads' },
         { id: 'ctpCost', label: 'CTP / green slip', type: 'number', prefix: '$', def: 620, step: 50, min: 0, auto: 'onroads' },
         { id: 'plateAndTransferFees', label: 'Plates & transfer fees', type: 'number', prefix: '$', def: 100, step: 10, min: 0 },
         { id: 'stampDutyOverride', label: 'Stamp duty override', type: 'number', prefix: '$', def: '', step: 100, min: 0, help: 'Leave blank to use the calculated state scale.' },
-        { id: 'deposit', label: 'Cash deposit', type: 'number', prefix: '$', def: 5000, step: 500, min: 0 },
-        { id: 'tradeInValue', label: 'Trade-in value', type: 'number', prefix: '$', def: 0, step: 500, min: 0 },
+        { id: 'deposit', label: 'Cash deposit', type: 'number', prefix: '$', def: 5000, step: 500, min: 0, simple: true },
+        { id: 'tradeInValue', label: 'Trade-in value', type: 'number', prefix: '$', def: 0, step: 500, min: 0, simple: true },
         { id: 'tradeInPayout', label: 'Trade-in payout owing', type: 'number', prefix: '$', def: 0, step: 500, min: 0, help: 'Existing finance rolled into the new loan.' }
       ]
     },
@@ -87,23 +103,29 @@
       id: 'finance', title: 'Finance', open: true,
       blurb: 'Choose a product, then compare it against every other option on the Compare tab.',
       fields: [
-        { id: 'product', label: 'Finance type', type: 'select', def: 'secured', options: [
-          ['secured', 'Secured car loan'], ['unsecured', 'Unsecured personal loan'],
-          ['dealer', 'Dealer / manufacturer finance'], ['gfv', 'Guaranteed Future Value'],
-          ['novated', 'Novated lease (salary packaged)'], ['chattel', 'Chattel mortgage (business)'],
-          ['financeLease', 'Finance lease (business)'], ['cash', 'Pay cash']
-        ] },
-        { id: 'interestRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 7.45, step: 0.05, min: 0, max: 40, help: 'The secured car loan rate. Other products use their own rate below.' },
-        { id: 'termMonths', label: 'Loan term', type: 'select', def: 60, options: [[12, '1 year'], [24, '2 years'], [36, '3 years'], [48, '4 years'], [60, '5 years'], [72, '6 years'], [84, '7 years']] },
-        { id: 'paymentFrequency', label: 'Pay & repayment cycle', type: 'select', def: 'monthly', options: [['weekly', 'Weekly'], ['fortnightly', 'Fortnightly'], ['monthly', 'Monthly']], help: 'Used for both your repayments and your take-home pay.' },
-        { id: 'balloonMode', label: 'Balloon / residual', type: 'select', def: 'none', showIf: is.balloonable, options: [
+        { id: 'product', label: 'Finance type', type: 'select', def: 'secured', simple: true,
+          // Filtered by vehicle condition — GFV is a new/demo program only.
+          optionsFor: function (s) {
+            var labels = {
+              secured: 'Secured car loan', unsecured: 'Unsecured personal loan',
+              dealer: 'Dealer / manufacturer finance', gfv: 'Guaranteed Future Value',
+              novated: 'Novated lease (salary packaged)', chattel: 'Chattel mortgage (business)',
+              financeLease: 'Finance lease (business)', cash: 'Pay cash'
+            };
+            return R.availableProducts(s).map(function (p) { return [p, labels[p]]; });
+          },
+          options: [] },
+        { id: 'interestRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 7.45, step: 0.05, min: 0, max: 40, simple: true, help: 'The secured car loan rate. Other products use their own rate below.' },
+        { id: 'termMonths', label: 'Loan term', type: 'select', def: 60, simple: true, options: [[12, '1 year'], [24, '2 years'], [36, '3 years'], [48, '4 years'], [60, '5 years'], [72, '6 years'], [84, '7 years']] },
+        { id: 'paymentFrequency', label: 'Pay & repayment cycle', type: 'select', def: 'monthly', simple: true, options: [['weekly', 'Weekly'], ['fortnightly', 'Fortnightly'], ['monthly', 'Monthly']], help: 'Used for both your repayments and your take-home pay.' },
+        { id: 'balloonMode', label: 'Balloon / residual', type: 'select', def: 'none', simple: true, showIf: is.balloonable, options: [
           ['none', 'None — pay it off in full'], ['percent', 'Percentage of the amount financed'],
           ['amount', 'Fixed dollar amount'], ['atoMinimum', 'ATO minimum residual']
         ] },
-        { id: 'balloonPercent', label: 'Balloon percentage', type: 'number', suffix: '%', def: 30, step: 1, min: 0, max: 60, showIf: function (s) { return is.balloonable(s) && s.balloonMode === 'percent'; } },
-        { id: 'balloonAmount', label: 'Balloon amount', type: 'number', prefix: '$', def: 12000, step: 500, min: 0, showIf: function (s) { return is.balloonable(s) && s.balloonMode === 'amount'; } },
-        { id: 'gfvAmount', label: 'Guaranteed Future Value', type: 'number', prefix: '$', def: 18000, step: 500, min: 0, showIf: is.gfv, help: 'The value the manufacturer guarantees at the end of the term. This replaces the balloon.' },
-        { id: 'gfvRate', label: 'GFV finance rate', type: 'number', suffix: '% p.a.', def: 6.99, step: 0.05, min: 0, showIf: is.gfv },
+        { id: 'balloonPercent', label: 'Balloon percentage', type: 'number', suffix: '%', def: 30, step: 1, min: 0, max: 60, simple: true, showIf: function (s) { return is.balloonable(s) && s.balloonMode === 'percent'; } },
+        { id: 'balloonAmount', label: 'Balloon amount', type: 'number', prefix: '$', def: 12000, step: 500, min: 0, simple: true, showIf: function (s) { return is.balloonable(s) && s.balloonMode === 'amount'; } },
+        { id: 'gfvAmount', label: 'Guaranteed Future Value', type: 'number', prefix: '$', def: 18000, step: 500, min: 0, simple: true, showIf: is.gfv, help: 'The value the manufacturer guarantees at the end of the term. This replaces the balloon.' },
+        { id: 'gfvRate', label: 'GFV finance rate', type: 'number', suffix: '% p.a.', def: 6.99, step: 0.05, min: 0, simple: true, showIf: is.gfv },
         { id: 'gfvAnnualKm', label: 'GFV kilometre allowance', type: 'number', suffix: 'km/yr', def: 15000, step: 1000, min: 0, showIf: is.gfv },
         { id: 'gfvExcessKmRate', label: 'Excess kilometre charge', type: 'number', prefix: '$', def: 0.15, step: 0.01, min: 0, showIf: is.gfv, help: 'Charged per kilometre over the allowance.' },
         { id: 'establishmentFee', label: 'Establishment fee', type: 'number', prefix: '$', def: 400, step: 50, min: 0 },
@@ -122,7 +144,7 @@
       id: 'running', title: 'Running costs', open: false,
       blurb: 'The real cost of a car is rarely the repayment. These feed cost per kilometre and the novated lease budget.',
       fields: [
-        { id: 'annualKm', label: 'Kilometres per year', type: 'number', suffix: 'km', def: 15000, step: 1000, min: 0 },
+        { id: 'annualKm', label: 'Kilometres per year', type: 'number', suffix: 'km', def: 15000, step: 1000, min: 0, simple: true },
         { id: 'fuelEconomy', label: 'Fuel use', type: 'number', suffix: 'L/100km', def: 7.5, step: 0.1, min: 0, showIf: is.liquidFuel },
         { id: 'fuelPrice', label: 'Fuel price', type: 'number', prefix: '$', suffix: '/L', def: 1.95, step: 0.05, min: 0, showIf: is.liquidFuel },
         { id: 'energyUse', label: 'Energy use', type: 'number', suffix: 'kWh/100km', def: 16, step: 0.5, min: 0, showIf: is.ev },
@@ -139,18 +161,18 @@
       id: 'income', title: 'Your income', open: true,
       blurb: 'Optional, but this is where Revvy gets useful: repayments as a share of what you actually take home.',
       fields: [
-        { id: 'grossSalary', label: 'Gross salary', type: 'number', prefix: '$', suffix: '/yr', def: 95000, step: 1000, min: 0 },
-        { id: 'salaryIncludesSuper', label: 'That figure includes super', type: 'checkbox', def: false },
+        { id: 'grossSalary', label: 'Gross salary', type: 'number', prefix: '$', suffix: '/yr', def: 95000, step: 1000, min: 0, simple: true },
+        { id: 'salaryIncludesSuper', label: 'That figure includes super', type: 'checkbox', def: false, simple: true },
         { id: 'otherIncome', label: 'Other taxable income', type: 'number', prefix: '$', suffix: '/yr', def: 0, step: 1000, min: 0 },
         { id: 'partnerIncome', label: 'Partner income', type: 'number', prefix: '$', suffix: '/yr', def: 0, step: 1000, min: 0, help: 'Used for household ratios and family thresholds.' },
-        { id: 'taxYear', label: 'Financial year', type: 'select', def: '2026-27', options: Object.keys(R.TAX_YEARS).map(function (k) { return [k, R.TAX_YEARS[k].label]; }) },
+        { id: 'taxYear', label: 'Financial year', type: 'select', def: '2026-27', simple: true, options: Object.keys(R.TAX_YEARS).map(function (k) { return [k, R.TAX_YEARS[k].label]; }) },
         { id: 'hasStudyLoan', label: 'I have a HELP / HECS or study loan', type: 'checkbox', def: false },
         { id: 'studyLoanBalance', label: 'Study loan balance', type: 'number', prefix: '$', def: 25000, step: 1000, min: 0, showIf: function (s) { return !!s.hasStudyLoan; } },
         { id: 'privateHospitalCover', label: 'I have private hospital cover', type: 'checkbox', def: true, help: 'Without it, the Medicare levy surcharge may apply above the income thresholds.' },
         { id: 'family', label: 'Use family thresholds', type: 'checkbox', def: false },
         { id: 'dependants', label: 'Dependent children', type: 'number', def: 0, step: 1, min: 0, showIf: function (s) { return !!s.family; } },
         { id: 'medicareExempt', label: 'Medicare levy exempt', type: 'checkbox', def: false },
-        { id: 'livingExpenses', label: 'Living expenses', type: 'number', prefix: '$', suffix: '/mth', def: 3200, step: 100, min: 0, help: 'Everything except the car and other loan repayments.' },
+        { id: 'livingExpenses', label: 'Living expenses', type: 'number', prefix: '$', suffix: '/mth', def: 3200, step: 100, min: 0, simple: true, help: 'Everything except the car and other loan repayments.' },
         { id: 'otherDebtRepayments', label: 'Other loan repayments', type: 'number', prefix: '$', suffix: '/mth', def: 0, step: 50, min: 0 },
         { id: 'otherDebtBalances', label: 'Other debt balances', type: 'number', prefix: '$', def: 0, step: 1000, min: 0, help: 'Mortgage, credit cards and personal loans, for the debt-to-income ratio.' },
         { id: 'savingsReturn', label: 'Return on savings', type: 'number', suffix: '% p.a.', def: 4.5, step: 0.1, min: 0, help: 'The opportunity cost of paying cash instead of financing.' },
@@ -216,6 +238,9 @@
 
   var state = load(KEY_INPUTS, defaults());
   var prefs = load(KEY_PREFS, { theme: 'auto', tab: 'summary', acknowledged: false, groupYears: true });
+  // New arrivals start in Simple. Anyone who has used Revvy before keeps the
+  // full form rather than finding half their fields apparently missing.
+  if (!prefs.mode) prefs.mode = prefs.acknowledged ? 'detailed' : 'simple';
   var scenarios = load(KEY_SCENARIOS, []);
 
   // Merge in any fields added since the saved copy was written.
@@ -255,6 +280,21 @@
     }
     i.residualMode = state.residualMode;
     if (state.stampDutyOverride === '' || state.stampDutyOverride == null) i.stampDutyOverride = null;
+
+    // Hidden fields must not leak into the maths. A used car has no dealer
+    // delivery, and a drive-away price already contains everything.
+    if (is.used(state)) {
+      i.dealerDelivery = 0;
+      i.optionsAndAccessories = 0;
+    }
+
+    // The EV FBT exemption reaches only cars first held from 1 July 2022.
+    // A used car older than that window cannot qualify however cheap it is.
+    i.evFirstHeldFromJuly2022 = !is.used(state) ||
+      +state.vehicleAge <= yearsSinceEvExemption();
+
+    // Never model a product the vehicle cannot actually be sold with.
+    if (R.availableProducts(state).indexOf(i.product) === -1) i.product = 'secured';
     return i;
   }
 
@@ -276,7 +316,8 @@
     }
 
     if (f.type === 'select') {
-      var opts = f.options.map(function (o) {
+      var choices = f.optionsFor ? f.optionsFor(state) : f.options;
+      var opts = choices.map(function (o) {
         return '<option value="' + esc(o[0]) + '"' +
           (String(val) === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
       }).join('');
@@ -299,26 +340,56 @@
       '</div>' + help + '</div>';
   }
 
+  function modeSwitchHtml() {
+    var simple = prefs.mode === 'simple';
+    return '<div class="mode-switch">' +
+      '<div class="seg" role="group" aria-label="Level of detail">' +
+      '<button type="button" data-mode="simple" aria-pressed="' + simple + '">Simple</button>' +
+      '<button type="button" data-mode="detailed" aria-pressed="' + !simple + '">Detailed</button>' +
+      '</div>' +
+      '<p class="mode-note">' + (simple
+        ? 'Just the essentials. Everything hidden — dealer delivery, fees, running costs, ' +
+          'tax settings — uses a sensible estimate you can see in the results.'
+        : 'Every input, including on-road costs, fees, rate changes, novated lease settings and ' +
+          'the tax assumptions behind the numbers.') +
+      '</p></div>';
+  }
+
   function renderForm() {
-    formEl.innerHTML = GROUPS.map(function (g) {
+    formEl.innerHTML = modeSwitchHtml() + GROUPS.map(function (g) {
       return '<details class="group" id="group-' + g.id + '"' + (g.open ? ' open' : '') + '>' +
         '<summary><span>' + esc(g.title) + '</span></summary>' +
         (g.blurb ? '<p class="blurb">' + esc(g.blurb) + '</p>' : '') +
         '<div class="grid">' + g.fields.map(fieldHtml).join('') + '</div>' +
         '</details>';
     }).join('');
+
+    formEl.querySelectorAll('[data-mode]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        prefs.mode = b.dataset.mode;
+        save(KEY_PREFS, prefs);
+        renderForm();
+        render();
+      });
+    });
     applyVisibility();
   }
 
   function applyVisibility() {
+    var simple = prefs.mode === 'simple';
     GROUPS.forEach(function (g) {
+      var visible = 0;
       g.fields.forEach(function (f) {
-        if (!f.showIf) return;
+        var show = (!f.showIf || f.showIf(state)) && (!simple || f.simple);
         var el = formEl.querySelector('[data-field="' + f.id + '"]');
-        if (el) el.hidden = !f.showIf(state);
+        if (el) el.hidden = !show;
+        if (show) visible++;
       });
+      // A group with nothing left to show is noise, so hide it entirely.
+      var groupEl = document.getElementById('group-' + g.id);
+      if (groupEl) groupEl.hidden = visible === 0;
     });
-    // Whole groups that only matter for certain products.
+
     var novGroup = document.getElementById('group-novated');
     var bizGroup = document.getElementById('group-business');
     if (novGroup) novGroup.classList.toggle('dim', !is.novated(state));
@@ -357,6 +428,25 @@
       var evBox = formEl.querySelector('#f-evFbtExempt');
       if (evBox) evBox.checked = true;
     }
+
+    if (id === 'vehicleCondition') {
+      // Used cars are almost always advertised drive-away; new ones are not.
+      if (state.__autoPriceBasis !== false) {
+        state.priceBasis = is.used(state) ? 'driveaway' : 'beforeOnRoads';
+      }
+      if (is.used(state)) state.dealerDelivery = 0;
+      // GFV is a new/demo program — do not leave an impossible product selected.
+      if (R.availableProducts(state).indexOf(state.product) === -1) {
+        var was = R.PRODUCT_LABELS[state.product];
+        state.product = 'secured';
+        toast(was + ' is not available on a used car — switched to a secured loan');
+      }
+      save(KEY_INPUTS, state);
+      renderForm();
+      render();
+      return;
+    }
+    if (id === 'priceBasis') state.__autoPriceBasis = false;
 
     applyVisibility();
     save(KEY_INPUTS, state);
@@ -551,6 +641,32 @@
         'equity for longer.');
     }
 
+    if (is.used(state)) {
+      add('good', 'A used car has already taken its steepest depreciation',
+        'The first owner absorbed the drop off the showroom floor. Revvy applies only the ongoing ' +
+        pct(+state.depreciationOngoing, 0) + ' a year from here, which is why a used car climbs out ' +
+        'of negative equity sooner than an equivalent new one.');
+      if (state.fuelType === 'ev' && +state.vehicleAge > yearsSinceEvExemption()) {
+        add('warn', 'This EV is too old for the FBT exemption',
+          'The exemption only covers cars first held and used on or after 1 July 2022. At ' +
+          n(state.vehicleAge) + ' years old this one predates that, so a novated lease on it is ' +
+          'treated like any other car.');
+      }
+      if (m.costs.luxuryCarTax === 0 && m.costs.priceBeforeOnRoads > R.CONST.lctThresholdOther) {
+        add('good', 'No luxury car tax on a second-hand purchase',
+          'LCT is charged on the first retail sale. Buying used avoids it entirely, which is a real ' +
+          'saving on an expensive car.');
+      }
+    }
+
+    if (state.priceBasis === 'driveaway') {
+      add('info', 'Drive-away price split into its parts',
+        'Working backwards from ' + $(+state.vehiclePrice) + ', the vehicle itself is about ' +
+        $(m.costs.listPrice) + ' with roughly ' + $(m.costs.stampDuty) + ' of stamp duty and ' +
+        $(m.costs.registration + m.costs.ctp + m.costs.plateAndTransferFees) +
+        ' of registration and fees inside it.');
+    }
+
     if (m.costs.luxuryCarTax > 0) {
       add('info', 'Luxury car tax applies: ' + $(m.costs.luxuryCarTax),
         'LCT is charged at ' + pct(R.CONST.lctRate * 100, 0) + ' on the value above the ' +
@@ -709,10 +825,12 @@
     var m = out.model, c = m.costs, html = '';
 
     var purchase = [
-      ['List price', $(c.listPrice)],
-      ['Options & accessories', $(c.optionsAndAccessories)],
-      ['Dealer delivery', $(c.dealerDelivery)]
+      [state.priceBasis === 'driveaway' ? 'Vehicle, excluding on-roads' : 'List price', $(c.listPrice)]
     ];
+    // Charges that do not apply to this purchase are omitted rather than
+    // listed as zero — a used car has no dealer delivery to explain away.
+    if (c.optionsAndAccessories > 0) purchase.push(['Options & accessories', $(c.optionsAndAccessories)]);
+    if (c.dealerDelivery > 0) purchase.push(['Dealer delivery', $(c.dealerDelivery)]);
     if (c.luxuryCarTax > 0) purchase.push(['Luxury car tax', $(c.luxuryCarTax), 'em']);
     purchase.push(['Stamp duty (' + esc(state.state) + ')', $(c.stampDuty)]);
     purchase.push(['Registration', $(c.registration)]);
