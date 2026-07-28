@@ -79,10 +79,10 @@
       blurb: 'Start with the advertised price. Tell Revvy whether that figure already includes ' +
         'on-road costs, and whether the car is new or used — both change what applies.',
       fields: [
-        { id: 'vehicleCondition', label: 'New or used?', type: 'select', def: 'new', simple: true, options: [['new', 'New'], ['demo', 'Demonstrator'], ['used', 'Used']], help: 'Changes what applies: luxury car tax, dealer delivery, GFV and depreciation all differ.' },
+        { id: 'vehicleCondition', label: 'New or used?', type: 'segmented', def: 'new', simple: true, options: [['new', 'New'], ['demo', 'Demo'], ['used', 'Used']], help: 'Changes what applies: luxury car tax, dealer delivery, GFV and depreciation all differ.' },
         { id: 'vehicleAge', label: 'Age of the vehicle', type: 'number', suffix: 'years', def: 3, step: 1, min: 0, max: 30, simple: true, showIf: is.used, help: 'Used for depreciation, and for electric vehicle FBT eligibility.' },
         { id: 'vehiclePrice', label: 'Purchase price', type: 'number', prefix: '$', def: 45000, step: 500, min: 0, simple: true, help: 'Including GST.' },
-        { id: 'priceBasis', label: 'That price is', type: 'select', def: 'beforeOnRoads', simple: true, options: [['beforeOnRoads', 'Before on-road costs'], ['driveaway', 'Drive-away — includes on-roads']], help: 'Drive-away prices are worked backwards to separate duty and registration.' },
+        { id: 'priceBasis', label: 'That price is', type: 'segmented', def: 'beforeOnRoads', simple: true, options: [['beforeOnRoads', 'Before on-roads'], ['driveaway', 'Drive-away']], help: 'Drive-away prices are worked backwards to separate duty and registration.' },
         { id: 'state', label: 'State or territory', type: 'select', def: 'NSW', simple: true, options: R.STATES.map(function (s) { return [s, s]; }), help: 'Stamp duty is a state tax and varies significantly.' },
         { id: 'fuelType', label: 'Fuel type', type: 'select', def: 'petrol', simple: true, options: [['petrol', 'Petrol'], ['diesel', 'Diesel'], ['hybrid', 'Hybrid'], ['phev', 'Plug-in hybrid'], ['ev', 'Electric']] },
         { id: 'vehicleType', label: 'Vehicle class', type: 'select', def: 'passenger', options: [['passenger', 'Passenger'], ['commercial', 'Commercial / ute / van']] },
@@ -103,21 +103,27 @@
       id: 'finance', title: 'Finance', open: true,
       blurb: 'Choose a product, then compare it against every other option on the Compare tab.',
       fields: [
-        { id: 'product', label: 'Finance type', type: 'select', def: 'secured', simple: true,
+        { id: 'product', label: 'Finance type', type: 'cards', def: 'secured', simple: true,
           // Filtered by vehicle condition — GFV is a new/demo program only.
           optionsFor: function (s) {
             var labels = {
-              secured: 'Secured car loan', unsecured: 'Unsecured personal loan',
-              dealer: 'Dealer / manufacturer finance', gfv: 'Guaranteed Future Value',
-              novated: 'Novated lease (salary packaged)', chattel: 'Chattel mortgage (business)',
-              financeLease: 'Finance lease (business)', cash: 'Pay cash'
+              secured: ['Secured loan', 'Car is the security. Usually the cheapest rate.'],
+              unsecured: ['Personal loan', 'No security over the car, so a higher rate.'],
+              dealer: ['Dealer finance', 'Arranged at the dealership.'],
+              gfv: ['Guaranteed Future Value', 'Trade back at a guaranteed price. New and demo only.'],
+              novated: ['Novated lease', 'Salary packaged through your employer.'],
+              chattel: ['Chattel mortgage', 'Business purchase, you own it outright.'],
+              financeLease: ['Finance lease', 'Business lease with a residual.'],
+              cash: ['Pay cash', 'No finance. Compare the opportunity cost.']
             };
-            return R.availableProducts(s).map(function (p) { return [p, labels[p]]; });
+            return R.availableProducts(s).map(function (p) {
+              return [p, labels[p][0], labels[p][1]];
+            });
           },
           options: [] },
         { id: 'interestRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 7.45, step: 0.05, min: 0, max: 40, simple: true, help: 'The secured car loan rate. Other products use their own rate below.' },
         { id: 'termMonths', label: 'Loan term', type: 'select', def: 60, simple: true, options: [[12, '1 year'], [24, '2 years'], [36, '3 years'], [48, '4 years'], [60, '5 years'], [72, '6 years'], [84, '7 years']] },
-        { id: 'paymentFrequency', label: 'Pay & repayment cycle', type: 'select', def: 'monthly', simple: true, options: [['weekly', 'Weekly'], ['fortnightly', 'Fortnightly'], ['monthly', 'Monthly']], help: 'Used for both your repayments and your take-home pay.' },
+        { id: 'paymentFrequency', label: 'Pay & repayment cycle', type: 'segmented', def: 'monthly', simple: true, options: [['weekly', 'Weekly'], ['fortnightly', 'Fortnightly'], ['monthly', 'Monthly']], help: 'Used for both your repayments and your take-home pay.' },
         { id: 'balloonMode', label: 'Balloon / residual', type: 'select', def: 'none', simple: true, showIf: is.balloonable, options: [
           ['none', 'None — pay it off in full'], ['percent', 'Percentage of the amount financed'],
           ['amount', 'Fixed dollar amount'], ['atoMinimum', 'ATO minimum residual']
@@ -180,7 +186,7 @@
       ]
     },
     {
-      id: 'novated', title: 'Novated lease', open: false,
+      id: 'novated', title: 'Novated lease', open: true, showIf: is.novated,
       blurb: 'Only relevant if your employer offers salary packaging. Figures are indicative — your packager will quote differently.',
       fields: [
         { id: 'novatedRate', label: 'Lease finance rate', type: 'number', suffix: '% p.a.', def: 7.95, step: 0.05, min: 0 },
@@ -194,7 +200,7 @@
       ]
     },
     {
-      id: 'business', title: 'Business use', open: false,
+      id: 'business', title: 'Business use', open: true, showIf: is.business,
       blurb: 'For chattel mortgages and finance leases. Indicative only — talk to your accountant.',
       fields: [
         { id: 'gstRegistered', label: 'Registered for GST', type: 'checkbox', def: true },
@@ -315,6 +321,28 @@
         (val ? ' checked' : '') + '><span>' + esc(f.label) + '</span></label>' + help + '</div>';
     }
 
+    // Radio groups styled as buttons: the choice and its alternatives are both
+    // visible at a glance, which a dropdown hides. Real radios keep arrow-key
+    // navigation and screen reader semantics for free.
+    if (f.type === 'segmented' || f.type === 'cards') {
+      var picks = f.optionsFor ? f.optionsFor(state) : f.options;
+      var body = picks.map(function (o) {
+        var optId = 'f-' + f.id + '-' + o[0];
+        return '<label class="' + (f.type === 'cards' ? 'card-opt' : 'seg-opt') + '" ' +
+          'data-value="' + esc(o[0]) + '" for="' + optId + '">' +
+          '<input type="radio" id="' + optId + '" name="f-' + f.id + '" value="' + esc(o[0]) + '" ' +
+          'data-id="' + f.id + '"' + (String(val) === String(o[0]) ? ' checked' : '') + '>' +
+          '<span class="opt-label">' + esc(o[1]) + '</span>' +
+          (o[2] ? '<span class="opt-note">' + esc(o[2]) + '</span>' : '') +
+          '</label>';
+      }).join('');
+      return '<div class="field ' + (f.type === 'cards' ? 'is-cards' : 'is-segmented') +
+        '" data-field="' + f.id + '">' +
+        '<span class="field-label">' + esc(f.label) + '</span>' +
+        '<div class="' + (f.type === 'cards' ? 'cards' : 'segmented') + '" role="radiogroup" ' +
+        'aria-label="' + esc(f.label) + '">' + body + '</div>' + help + '</div>';
+    }
+
     if (f.type === 'select') {
       var choices = f.optionsFor ? f.optionsFor(state) : f.options;
       var opts = choices.map(function (o) {
@@ -385,15 +413,12 @@
         if (el) el.hidden = !show;
         if (show) visible++;
       });
-      // A group with nothing left to show is noise, so hide it entirely.
+      // A section is shown only when it is relevant to what is selected, and
+      // hidden outright when it has nothing left to offer.
+      var relevant = !g.showIf || g.showIf(state);
       var groupEl = document.getElementById('group-' + g.id);
-      if (groupEl) groupEl.hidden = visible === 0;
+      if (groupEl) groupEl.hidden = visible === 0 || !relevant;
     });
-
-    var novGroup = document.getElementById('group-novated');
-    var bizGroup = document.getElementById('group-business');
-    if (novGroup) novGroup.classList.toggle('dim', !is.novated(state));
-    if (bizGroup) bizGroup.classList.toggle('dim', !is.business(state));
   }
 
   formEl.addEventListener('input', onFieldChange);

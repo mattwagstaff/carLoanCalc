@@ -37,6 +37,20 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
   await page.goto(PAGE);
   await page.click('#dlg-disclaimer button[value=ok]');
 
+  // Segmented buttons and product cards are radio groups; click the label.
+  const choose = async (field, value) => {
+    await page.evaluate((f) => {
+      const el = document.querySelector('[data-field="' + f + '"]');
+      const group = el && el.closest('details');
+      if (group) group.open = true;
+    }, field);
+    await page.click(`[data-field="${field}"] label[data-value="${value}"]`);
+  };
+  const chosen = (field) =>
+    page.$eval(`[data-field="${field}"] input:checked`, (e) => e.value);
+  const offered = (field) =>
+    page.$$eval(`[data-field="${field}"] input`, (els) => els.map((e) => e.value));
+
   // Fields live inside collapsed <details> groups, which are not interactable
   // until the group is open.
   const setField = async (id, value) => {
@@ -59,7 +73,7 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
 
   await t.test('every product produces finite numbers everywhere', async () => {
     for (const product of PRODUCTS) {
-      await page.selectOption('#f-product', product);
+      await choose('product', product);
       for (const tab of TABS.slice(0, 5)) {
         await page.click(`.tab[data-tab="${tab}"]`);
         const junk = await page.$eval('#panel-' + tab, (e) => {
@@ -76,13 +90,13 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
   await t.test('the product choice actually changes the repayment', async () => {
     const payments = {};
     for (const product of ['secured', 'unsecured', 'dealer', 'gfv']) {
-      await page.selectOption('#f-product', product);
+      await choose('product', product);
       payments[product] = await page.$eval('.hero-card .hero-value', (e) => e.textContent);
     }
     assert.notStrictEqual(payments.secured, payments.unsecured, 'unsecured should cost more');
     assert.notStrictEqual(payments.secured, payments.dealer, 'dealer rate should differ');
     assert.notStrictEqual(payments.secured, payments.gfv, 'a GFV defers part of the balance');
-    await page.selectOption('#f-product', 'secured');
+    await choose('product', 'secured');
   });
 
   await t.test('extreme inputs do not break the page', async () => {
@@ -141,12 +155,12 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
   });
 
   await t.test('GFV disappears from the product list on a used car', async () => {
-    await page.selectOption('#f-vehicleCondition', 'new');
-    let products = await page.$$eval('#f-product option', (o) => o.map((x) => x.value));
+    await choose('vehicleCondition', 'new');
+    let products = await offered('product');
     assert.ok(products.includes('gfv'), 'GFV should be offered on a new car');
 
-    await page.selectOption('#f-vehicleCondition', 'used');
-    products = await page.$$eval('#f-product option', (o) => o.map((x) => x.value));
+    await choose('vehicleCondition', 'used');
+    products = await offered('product');
     assert.ok(!products.includes('gfv'), 'GFV should not be offered on a used car');
     // everything else survives
     ['secured', 'unsecured', 'dealer', 'novated', 'chattel', 'cash']
@@ -154,38 +168,70 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
   });
 
   await t.test('selecting used while on GFV falls back to a secured loan', async () => {
-    await page.selectOption('#f-vehicleCondition', 'new');
-    await page.selectOption('#f-product', 'gfv');
-    assert.strictEqual(await page.$eval('#f-product', (e) => e.value), 'gfv');
-    await page.selectOption('#f-vehicleCondition', 'used');
-    assert.strictEqual(await page.$eval('#f-product', (e) => e.value), 'secured');
+    await choose('vehicleCondition', 'new');
+    await choose('product', 'gfv');
+    assert.strictEqual(await chosen('product'), 'gfv');
+    await choose('vehicleCondition', 'used');
+    assert.strictEqual(await chosen('product'), 'secured');
     const hero = await page.$eval('.hero-card .hero-value', (e) => e.textContent);
     assert.ok(!/NaN|undefined/.test(hero), `hero broke after fallback: ${hero}`);
   });
 
   await t.test('used cars hide first-sale-only charges', async () => {
-    await page.selectOption('#f-vehicleCondition', 'used');
+    await choose('vehicleCondition', 'used');
     assert.strictEqual(await visible('dealerDelivery'), false, 'no dealer delivery on a used car');
     assert.strictEqual(await visible('vehicleAge'), true, 'age drives depreciation and EV rules');
-    await page.selectOption('#f-vehicleCondition', 'new');
+    await choose('vehicleCondition', 'new');
     assert.strictEqual(await visible('dealerDelivery'), true);
     assert.strictEqual(await visible('vehicleAge'), false);
   });
 
   await t.test('a drive-away price is not double counted', async () => {
-    await page.selectOption('#f-vehicleCondition', 'new');
+    await choose('vehicleCondition', 'new');
     await setField('vehiclePrice', '50000');
-    await page.selectOption('#f-priceBasis', 'beforeOnRoads');
+    await choose('priceBasis', 'beforeOnRoads');
     await page.click('.tab[data-tab="summary"]');
     const before = await page.$eval('#panel-summary', (e) => e.innerText);
-    await page.selectOption('#f-priceBasis', 'driveaway');
+    await choose('priceBasis', 'driveaway');
     const after = await page.$eval('#panel-summary', (e) => e.innerText);
     assert.notStrictEqual(before, after, 'price basis should change the breakdown');
     const driveAway = after.match(/Drive-away price\s*\$([\d,]+)/);
     assert.ok(driveAway, 'drive-away total should be shown');
     assert.strictEqual(driveAway[1].replace(/,/g, ''), '50000',
       'the drive-away total must equal what was entered');
-    await page.selectOption('#f-priceBasis', 'beforeOnRoads');
+    await choose('priceBasis', 'beforeOnRoads');
+  });
+
+  await t.test('sections appear only when the finance type needs them', async () => {
+    const section = (id) => page.evaluate(
+      (g) => !document.getElementById('group-' + g).hidden, id);
+
+    await page.click('[data-mode="detailed"]');
+    await choose('product', 'secured');
+    assert.strictEqual(await section('novated'), false, 'no novated panel on a loan');
+    assert.strictEqual(await section('business'), false, 'no business panel on a consumer loan');
+
+    await choose('product', 'novated');
+    assert.strictEqual(await section('novated'), true, 'novated panel should appear');
+    assert.strictEqual(await section('business'), false);
+
+    await choose('product', 'chattel');
+    assert.strictEqual(await section('business'), true, 'business panel should appear');
+    assert.strictEqual(await section('novated'), false);
+
+    await choose('product', 'secured');
+  });
+
+  await t.test('the selected option is visually marked, not just checked', async () => {
+    await choose('vehicleCondition', 'used');
+    const marked = await page.$eval(
+      '[data-field="vehicleCondition"] label[data-value="used"]',
+      (el) => getComputedStyle(el).backgroundColor);
+    const other = await page.$eval(
+      '[data-field="vehicleCondition"] label[data-value="new"]',
+      (el) => getComputedStyle(el).backgroundColor);
+    assert.notStrictEqual(marked, other, 'the chosen button must look different');
+    await choose('vehicleCondition', 'new');
   });
 
   await t.test('inputs persist across a reload', async () => {

@@ -231,6 +231,51 @@ a { color: var(--accent-ink); }
 .control.has-prefix input { padding-left: 1.35rem; }
 .control.has-suffix input { padding-right: 3.9rem; }
 
+/* ---------------------- segmented buttons & cards --------------------- */
+
+.field > .field-label { font-size: .78rem; font-weight: 600; color: var(--ink-2); }
+.field.is-segmented, .field.is-cards { grid-column: 1 / -1; }
+
+.segmented {
+  display: flex; gap: 3px; padding: 3px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.seg-opt {
+  flex: 1; position: relative; text-align: center; cursor: pointer;
+  padding: .42rem .3rem; border-radius: 6px; font-size: .82rem; font-weight: 600;
+  color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.seg-opt input, .card-opt input {
+  position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none;
+}
+.seg-opt:hover { color: var(--ink); }
+.seg-opt:has(input:checked) {
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow);
+}
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .4rem; }
+.card-opt {
+  position: relative; cursor: pointer; display: flex; flex-direction: column; gap: .12rem;
+  padding: .55rem .65rem; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.card-opt:hover { border-color: var(--ink-3); }
+.card-opt .opt-label { font-size: .84rem; font-weight: 650; color: var(--ink); }
+.card-opt .opt-note { font-size: .71rem; color: var(--ink-3); line-height: 1.35; }
+.card-opt:has(input:checked) {
+  border-color: var(--accent); background: var(--good-bg); box-shadow: inset 0 0 0 1px var(--accent);
+}
+.card-opt:has(input:checked) .opt-label { color: var(--good); }
+.card-opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Fallback for browsers without :has() — the checked state still reads out to
+   assistive tech, this only affects the visual highlight. */
+@supports not selector(:has(*)) {
+  .seg-opt input:checked ~ .opt-label { text-decoration: underline; }
+  .card-opt input:checked ~ .opt-label { text-decoration: underline; }
+}
+
 .field.check { justify-content: flex-start; }
 .field.check label {
   display: flex; align-items: flex-start; gap: .45rem; font-size: .8rem;
