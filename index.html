@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Revvy — Australian Car Loan &amp; Novated Lease Calculator</title>
+<meta name="description" content="Revvy is a free Australian car finance calculator. Compare car loans, balloon payments, novated leases, guaranteed future value and chattel mortgages, with stamp duty, LCT, tax and income impact. General information only — not financial advice.">
+<meta name="theme-color" content="#0e1a2b">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230e1a2b'/><text y='72' x='50' text-anchor='middle' font-size='62' font-family='system-ui,sans-serif' font-weight='700' fill='%234ade80'>R</text></svg>">
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="Revvy — Australian Car Loan &amp; Novated Lease Calculator">
+<meta property="og:description" content="Compare every Australian car finance option in one place. Not financial advice.">
+<meta property="og:type" content="website">
+</head>
+<body>
+
+<a class="skip" href="#results">Skip to results</a>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+      <rect width="48" height="48" rx="12" fill="currentColor" opacity=".12"/>
+      <path d="M11 30h26M14 30l3-9a4 4 0 0 1 3.8-2.7h6.4A4 4 0 0 1 31 21l3 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="17" cy="33" r="3" fill="none" stroke="currentColor" stroke-width="2.6"/>
+      <circle cx="31" cy="33" r="3" fill="none" stroke="currentColor" stroke-width="2.6"/>
+    </svg>
+    <div>
+      <span class="name">Revvy</span>
+      <span class="tag">Australian car finance, in numbers</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button type="button" class="btn ghost" id="btn-scenarios" aria-haspopup="dialog">Scenarios</button>
+    <button type="button" class="btn ghost" id="btn-reset">Reset</button>
+    <button type="button" class="btn ghost" id="btn-print">Print</button>
+    <button type="button" class="btn icon" id="btn-theme" aria-label="Switch colour theme" title="Switch colour theme">◐</button>
+  </div>
+</header>
+
+<div class="notice" role="note">
+  <strong>General information only.</strong> Revvy is a calculator, not a financial adviser, credit
+  provider or tax agent. It does not consider your objectives, financial situation or needs, and
+  nothing here is financial, credit, tax or legal advice.
+  <button type="button" class="linkish" id="btn-disclaimer">Read the full disclaimer</button>
+</div>
+
+<main class="layout">
+
+  <!-- Key numbers. Placed first so they lead on a phone; the grid moves them
+       to the top of the results column on wider screens. -->
+  <div class="hero" id="hero"></div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <form class="inputs" id="inputs" autocomplete="off">
+    <h2 class="sr-only">Your details</h2>
+    <!-- Field groups are rendered here by app.js from the GROUPS schema. -->
+  </form>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="results" id="results" aria-live="polite">
+
+    <div class="tabs" role="tablist" aria-label="Result views">
+      <button role="tab" class="tab" data-tab="summary" aria-selected="true">Summary</button>
+      <button role="tab" class="tab" data-tab="income">Income</button>
+      <button role="tab" class="tab" data-tab="compare">Compare</button>
+      <button role="tab" class="tab" data-tab="equity">Equity</button>
+      <button role="tab" class="tab" data-tab="schedule">Schedule</button>
+      <button role="tab" class="tab" data-tab="learn">Learn</button>
+    </div>
+
+    <div class="panels">
+      <div class="panel" id="panel-summary" role="tabpanel"></div>
+      <div class="panel" id="panel-income" role="tabpanel" hidden></div>
+      <div class="panel" id="panel-compare" role="tabpanel" hidden></div>
+      <div class="panel" id="panel-equity" role="tabpanel" hidden></div>
+      <div class="panel" id="panel-schedule" role="tabpanel" hidden></div>
+
+      <div class="panel prose" id="panel-learn" role="tabpanel" hidden>
+        <h3>Plain-English glossary</h3>
+
+        <h4>Balloon payment (residual)</h4>
+        <p>A lump sum left at the end of the loan. It lowers your regular repayment because you are
+        paying off less of the car each month — but you pay interest on that deferred amount for the
+        whole term, so the loan costs more overall. At the end you pay it out, refinance it, or sell
+        the car. If the car is worth less than the balloon, you are in <em>negative equity</em>.</p>
+
+        <h4>Guaranteed Future Value (GFV)</h4>
+        <p>Sold under names like Toyota Access, Mazda Choice and Volkswagen Choice. It is a balloon
+        payment that the manufacturer <em>guarantees</em> to honour as a trade-in value, provided you
+        stay inside the kilometre allowance and condition standards. At the end you can trade it in
+        and walk away, pay the GFV and keep the car, or refinance. Exceed the kilometre allowance and
+        you pay an excess charge per kilometre.</p>
+
+        <h4>Novated lease</h4>
+        <p>A three-way arrangement between you, your employer and a financier. Your employer deducts
+        the lease and running costs from your salary — mostly before tax — which lowers your taxable
+        income. The financier claims the GST on the purchase price, so you finance a GST-exclusive
+        amount. Because you get a car for private use, <strong>fringe benefits tax</strong> applies.</p>
+
+        <h4>FBT and the Employee Contribution Method (ECM)</h4>
+        <p>Under the statutory formula the taxable value of the car benefit is 20% of the car's base
+        value each year. ECM cancels that out: you contribute the same amount from <em>post-tax</em>
+        salary, reducing the FBT taxable value to nil. That is why a novated lease quote shows both a
+        pre-tax and a post-tax deduction.</p>
+
+        <h4>The electric vehicle FBT exemption</h4>
+        <p>Eligible battery electric vehicles first held and used from 1 July 2022, priced under the
+        fuel-efficient luxury car tax threshold, are exempt from FBT — so no ECM is needed and the
+        whole package can be pre-tax. Plug-in hybrids stopped being eligible from 1 April 2025 unless
+        a binding commitment was already in place. Exempt does not mean invisible: the benefit is
+        still included in your <strong>reportable fringe benefits amount</strong>, which counts
+        towards study loan repayments, the Medicare levy surcharge and various income tests.</p>
+
+        <h4>Chattel mortgage</h4>
+        <p>A business purchase where you own the vehicle from the outset and the lender takes a
+        mortgage over it. A GST-registered business can generally claim the GST credit up front
+        (capped at one-eleventh of the car limit), and claim interest and depreciation as deductions
+        to the extent of business use.</p>
+
+        <h4>Comparison rate vs effective rate</h4>
+        <p>A <em>comparison rate</em> is a regulated figure lenders must publish, calculated on a
+        standard example ($30,000 over 5 years for car loans). Revvy shows an <em>effective rate</em>
+        instead: the rate implied by your actual cash flows, including establishment and monthly
+        fees. It answers the question the comparison rate is meant to answer, but for your loan.</p>
+
+        <h4>Luxury car tax (LCT)</h4>
+        <p>A 33% tax on the value of a car above the LCT threshold, excluding the GST component.
+        Fuel-efficient vehicles get a higher threshold. LCT is paid on the way in and is not
+        refundable, and it forms part of the car's base value for FBT.</p>
+
+        <h4>Stamp duty</h4>
+        <p>Motor vehicle duty is a state tax, so it changes at the border. Revvy models the published
+        scales for each state and territory, including the electric vehicle concessions in the ACT
+        and Queensland's cylinder-based rates. It is an estimate — check with your state revenue
+        office, and use the override field if you have a real quote.</p>
+
+        <h4>Payments in advance vs arrears</h4>
+        <p>Leases are usually paid in advance (at the start of each period) and loans in arrears (at
+        the end). Paying in advance slightly reduces the interest charged, because your payment lands
+        before the interest accrues.</p>
+
+        <h3>How Revvy calculates</h3>
+        <ul>
+          <li>Interest is accrued per payment period at the annual rate divided by the number of
+              periods in a year. Real lenders usually accrue daily, so expect small differences.</li>
+          <li>When a rate change is applied, the repayment is recalculated over the remaining term —
+              the way a variable-rate lender would.</li>
+          <li>Resale value uses a declining-balance depreciation curve with a separate first-year
+              drop. Actual values depend on make, model, condition and the used market.</li>
+          <li>Tax uses the resident rates for the selected year, plus the Medicare levy, the levy
+              surcharge and study loan repayments where applicable. It ignores offsets, deductions and
+              anything else specific to you.</li>
+          <li>Novated lease figures are indicative. Real quotes include the packager's own fees,
+              budgeting assumptions and insurance pricing.</li>
+        </ul>
+
+        <h3>Where the numbers come from</h3>
+        <p>Tax rates and thresholds, the luxury car tax thresholds, the car limit, FBT rates and the
+        ATO minimum residual scale are all editable in the <strong>Assumptions</strong> panel. They
+        are indexed or legislated and change regularly, so verify anything you are relying on against
+        <span class="nowrap">ato.gov.au</span> and your state revenue office.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p class="disclaimer">
+    <strong>Important — this is not financial advice.</strong>
+    Revvy provides general information and estimates produced by a calculator. It does not take into
+    account your objectives, financial situation or needs, and it is not financial product advice,
+    credit assistance, tax advice or legal advice. Revvy is not a credit provider, credit assistance
+    provider, financial adviser, registered tax agent or insurance broker, and no application,
+    quote, approval or recommendation is made or implied. Results depend entirely on the assumptions
+    you enter and on rates, thresholds and duty scales that change over time; they may be inaccurate
+    or out of date. Real quotes will differ. Before making any decision about a car loan, lease,
+    salary packaging arrangement or insurance, consider obtaining advice from an appropriately
+    licensed or registered professional, and read the credit contract, product disclosure statement
+    and target market determination. To the extent permitted by law, no liability is accepted for any
+    loss arising from use of, or reliance on, this calculator.
+  </p>
+  <p class="meta">
+    Everything runs in your browser. Your figures are saved to this device only — nothing is sent to a
+    server. <span id="foot-asat"></span>
+  </p>
+</footer>
+
+<dialog id="dlg-disclaimer" class="dlg">
+  <form method="dialog">
+    <h2>Before you use Revvy</h2>
+    <p>Revvy is a calculator that produces <strong>estimates from the assumptions you enter</strong>.
+    It is general information only.</p>
+    <ul>
+      <li>It is <strong>not financial, credit, tax or legal advice</strong>, and does not consider
+          your objectives, financial situation or needs.</li>
+      <li>Revvy is not a credit provider, lender, broker, salary packaging provider, adviser or tax
+          agent. Nothing here is an offer, quote or approval.</li>
+      <li>Rates, tax scales, thresholds and stamp duty change. Verify anything important against the
+          ATO, your state revenue office, and the lender's own documents.</li>
+      <li>Novated lease and business tax outcomes depend on your employer, your packager and your
+          circumstances. Get advice specific to you.</li>
+    </ul>
+    <menu>
+      <button value="ok" class="btn primary">I understand</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dlg-scenarios" class="dlg">
+  <h2>Saved scenarios</h2>
+  <p class="muted">Scenarios are stored in this browser only.</p>
+  <div class="scenario-new">
+    <label for="scenario-name" class="sr-only">Scenario name</label>
+    <input type="text" id="scenario-name" placeholder="e.g. RAV4 hybrid, 5 years" maxlength="60">
+    <button type="button" class="btn primary" id="btn-save-scenario">Save current</button>
+  </div>
+  <div id="scenario-list" class="scenario-list"></div>
+  <div class="dlg-footer">
+    <button type="button" class="btn ghost" id="btn-export">Export JSON</button>
+    <button type="button" class="btn ghost" id="btn-import">Import JSON</button>
+    <input type="file" id="file-import" accept="application/json,.json" hidden>
+    <button type="button" class="btn" id="btn-close-scenarios">Close</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="finance.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

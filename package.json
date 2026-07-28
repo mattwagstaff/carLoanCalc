@@ -1,0 +1,16 @@
+{
+  "name": "revvy",
+  "version": "1.0.0",
+  "description": "Revvy — an Australian car loan, novated lease and car finance calculator. Static, self-contained, no dependencies.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/finance.test.js",
+    "test:all": "node --test test/",
+    "start": "python3 -m http.server 8080"
+  },
+  "optionalDependencies": {},
+  "devDependencies": {
+    "playwright": "^1.62.0"
+  }
+}
