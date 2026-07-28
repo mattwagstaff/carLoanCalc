@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node --test test/finance.test.js",
-    "test:all": "node --test test/",
+    "test:all": "node --test test/finance.test.js test/browser.test.js",
     "start": "python3 -m http.server 8080"
   },
   "optionalDependencies": {},

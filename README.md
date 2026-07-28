@@ -17,6 +17,47 @@ network calls. Drop the files on any web host and it works.
 
 ---
 
+## Quick start
+
+**Open `index.html` in your browser.** That is the whole thing — double-click the file, or:
+
+```sh
+git clone https://github.com/mattwagstaff/carLoanCalc.git
+cd carLoanCalc
+open index.html          # macOS
+xdg-open index.html      # Linux
+start index.html         # Windows
+```
+
+There is nothing to install and nothing to build. It runs straight from `file://` because there
+are no modules to fetch, no packages to resolve and no API to call.
+
+### Serving it over HTTP instead
+
+Optional — useful if you want to test it on your phone over the local network, or check it behaves
+the same way it will when hosted:
+
+```sh
+npm start                      # python3 -m http.server 8080
+# or, without npm:
+python3 -m http.server 8080
+npx serve .
+```
+
+Then visit <http://localhost:8080>.
+
+### Running the tests
+
+```sh
+npm test           # 50 engine tests — needs Node 18+, no dependencies
+npm run test:all   # adds the browser smoke test (needs: npm install)
+```
+
+`npm test` requires nothing but Node. The browser test needs Playwright, which is why it is a dev
+dependency and why it skips itself when it is not installed.
+
+---
+
 ## What it does
 
 **Finance products**
@@ -69,26 +110,13 @@ anywhere — there is no server to send it to.
 
 ---
 
-## Running it
+## What the tests cover
 
-Open `index.html` in a browser. That is the whole story — it works from `file://`.
-
-To serve it locally:
-
-```sh
-npm start          # python3 -m http.server 8080
-```
-
-## Tests
-
-```sh
-npm test           # engine tests, no dependencies required
-npm run test:all   # adds a browser smoke test (needs playwright)
-```
-
-`test/finance.test.js` covers the amortisation maths, tax scales, duty scales, novated lease and
-FBT treatment, and the comparison logic. `test/browser.test.js` drives the real UI in Chromium and
-skips itself if Playwright is not installed.
+`test/finance.test.js` covers the amortisation maths (including balloons, payments in advance,
+extra repayments and mid-term rate changes), the tax scales, the duty scales for all eight states,
+the novated lease and FBT treatment, and the comparison logic. `test/browser.test.js` drives the
+real UI in Chromium — every product across every tab, extreme inputs, persistence across a reload,
+scenario save and load, and a check that nothing scrolls sideways on a phone.
 
 ## Publishing
 
