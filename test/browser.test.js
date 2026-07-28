@@ -98,6 +98,96 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
     await setField('annualKm', '15000');
   });
 
+  // Whether a field is offered at all, independent of whether its accordion
+  // happens to be collapsed — that is a separate, user-controlled thing.
+  const visible = (id) => page.evaluate((f) => {
+    const el = document.querySelector('[data-field="' + f + '"]');
+    if (!el || el.hidden) return false;
+    const group = el.closest('details');
+    return !(group && group.hidden);
+  }, id);
+
+  await t.test('simple mode hides the intricate fields, detailed shows them', async () => {
+    await page.click('[data-mode="simple"]');
+    for (const id of ['dealerDelivery', 'stampDutyOverride', 'monthlyFee', 'rateChange1After',
+      'insuranceCost', 'companyTaxRate', 'fbtRate']) {
+      assert.strictEqual(await visible(id), false, `${id} should be hidden in simple mode`);
+    }
+    for (const id of ['vehiclePrice', 'vehicleCondition', 'priceBasis', 'interestRate',
+      'termMonths', 'balloonMode', 'deposit', 'grossSalary']) {
+      assert.strictEqual(await visible(id), true, `${id} should be visible in simple mode`);
+    }
+    await page.click('[data-mode="detailed"]');
+    for (const id of ['dealerDelivery', 'stampDutyOverride', 'monthlyFee', 'insuranceCost']) {
+      assert.strictEqual(await visible(id), true, `${id} should be visible in detailed mode`);
+    }
+  });
+
+  await t.test('simple mode still produces the same numbers', async () => {
+    await page.click('[data-mode="detailed"]');
+    const detailed = await page.$eval('.hero-card .hero-value', (e) => e.textContent);
+    await page.click('[data-mode="simple"]');
+    const simple = await page.$eval('.hero-card .hero-value', (e) => e.textContent);
+    assert.strictEqual(simple, detailed, 'hiding fields must not change the calculation');
+    await page.click('[data-mode="detailed"]');
+  });
+
+  await t.test('the mode choice persists across a reload', async () => {
+    await page.click('[data-mode="simple"]');
+    await page.reload();
+    assert.strictEqual(
+      await page.getAttribute('[data-mode="simple"]', 'aria-pressed'), 'true');
+    await page.click('[data-mode="detailed"]');
+  });
+
+  await t.test('GFV disappears from the product list on a used car', async () => {
+    await page.selectOption('#f-vehicleCondition', 'new');
+    let products = await page.$$eval('#f-product option', (o) => o.map((x) => x.value));
+    assert.ok(products.includes('gfv'), 'GFV should be offered on a new car');
+
+    await page.selectOption('#f-vehicleCondition', 'used');
+    products = await page.$$eval('#f-product option', (o) => o.map((x) => x.value));
+    assert.ok(!products.includes('gfv'), 'GFV should not be offered on a used car');
+    // everything else survives
+    ['secured', 'unsecured', 'dealer', 'novated', 'chattel', 'cash']
+      .forEach((p) => assert.ok(products.includes(p), `${p} should still be offered`));
+  });
+
+  await t.test('selecting used while on GFV falls back to a secured loan', async () => {
+    await page.selectOption('#f-vehicleCondition', 'new');
+    await page.selectOption('#f-product', 'gfv');
+    assert.strictEqual(await page.$eval('#f-product', (e) => e.value), 'gfv');
+    await page.selectOption('#f-vehicleCondition', 'used');
+    assert.strictEqual(await page.$eval('#f-product', (e) => e.value), 'secured');
+    const hero = await page.$eval('.hero-card .hero-value', (e) => e.textContent);
+    assert.ok(!/NaN|undefined/.test(hero), `hero broke after fallback: ${hero}`);
+  });
+
+  await t.test('used cars hide first-sale-only charges', async () => {
+    await page.selectOption('#f-vehicleCondition', 'used');
+    assert.strictEqual(await visible('dealerDelivery'), false, 'no dealer delivery on a used car');
+    assert.strictEqual(await visible('vehicleAge'), true, 'age drives depreciation and EV rules');
+    await page.selectOption('#f-vehicleCondition', 'new');
+    assert.strictEqual(await visible('dealerDelivery'), true);
+    assert.strictEqual(await visible('vehicleAge'), false);
+  });
+
+  await t.test('a drive-away price is not double counted', async () => {
+    await page.selectOption('#f-vehicleCondition', 'new');
+    await setField('vehiclePrice', '50000');
+    await page.selectOption('#f-priceBasis', 'beforeOnRoads');
+    await page.click('.tab[data-tab="summary"]');
+    const before = await page.$eval('#panel-summary', (e) => e.innerText);
+    await page.selectOption('#f-priceBasis', 'driveaway');
+    const after = await page.$eval('#panel-summary', (e) => e.innerText);
+    assert.notStrictEqual(before, after, 'price basis should change the breakdown');
+    const driveAway = after.match(/Drive-away price\s*\$([\d,]+)/);
+    assert.ok(driveAway, 'drive-away total should be shown');
+    assert.strictEqual(driveAway[1].replace(/,/g, ''), '50000',
+      'the drive-away total must equal what was entered');
+    await page.selectOption('#f-priceBasis', 'beforeOnRoads');
+  });
+
   await t.test('inputs persist across a reload', async () => {
     await page.selectOption('#f-termMonths', '84');
     await page.reload();

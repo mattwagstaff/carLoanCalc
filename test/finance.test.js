@@ -352,6 +352,94 @@ test('affordability band degrades as the loan grows', () => {
   assert.ok(dear.percentOfNet > cheap.percentOfNet);
 });
 
+/* ---------------------- new / demo / used --------------------------- */
+
+test('a used car does not attract luxury car tax a second time', () => {
+  const dear = Object.assign({}, baseInput, { vehiclePrice: 120000 });
+  assert.ok(R.purchaseCosts(dear).luxuryCarTax > 0, 'new car should attract LCT');
+  const used = Object.assign({}, dear, { vehicleCondition: 'used' });
+  assert.strictEqual(R.purchaseCosts(used).luxuryCarTax, 0);
+});
+
+test('a demo car is treated like new for LCT', () => {
+  const demo = Object.assign({}, baseInput, { vehiclePrice: 120000, vehicleCondition: 'demo' });
+  assert.ok(R.purchaseCosts(demo).luxuryCarTax > 0);
+});
+
+test('a used car does not take the first year depreciation hit again', () => {
+  const price = 40000;
+  const asNew = R.projectedValue(price, 12, 20, 14, false);
+  const asUsed = R.projectedValue(price, 12, 20, 14, true);
+  near(asNew, price * 0.8, 1);
+  near(asUsed, price * 0.86, 1);
+  assert.ok(asUsed > asNew, 'a used car should retain more of its value');
+});
+
+test('used cars fall out of negative equity sooner than new ones', () => {
+  const opts = { deposit: 0, balloonMode: 'percent', balloonPercent: 30 };
+  const asNew = R.loanModel(Object.assign({}, baseInput, opts));
+  const asUsed = R.loanModel(Object.assign({}, baseInput, opts, { vehicleCondition: 'used' }));
+  assert.ok(asUsed.equityAtEnd > asNew.equityAtEnd);
+});
+
+test('GFV is not offered on a used car', () => {
+  assert.ok(R.availableProducts(baseInput).includes('gfv'));
+  assert.ok(R.availableProducts(Object.assign({}, baseInput, { vehicleCondition: 'demo' })).includes('gfv'));
+  assert.ok(!R.availableProducts(Object.assign({}, baseInput, { vehicleCondition: 'used' })).includes('gfv'));
+});
+
+test('compareAll drops GFV for a used car but keeps everything else', () => {
+  const rows = R.compareAll(Object.assign({}, baseInput, { vehicleCondition: 'used' }));
+  const keys = rows.map((r) => r.product);
+  assert.ok(!keys.includes('gfv'));
+  ['secured', 'unsecured', 'dealer', 'chattel', 'financeLease', 'novated', 'cash']
+    .forEach((p) => assert.ok(keys.includes(p), `missing ${p}`));
+});
+
+test('an older used EV does not qualify for the FBT exemption', () => {
+  const shared = { product: 'novated', fuelType: 'ev', evFbtExempt: true, vehiclePrice: 60000 };
+  const recent = R.novatedModel(Object.assign({}, baseInput, shared));
+  assert.strictEqual(recent.fbt.exemptEv, true);
+  const older = R.novatedModel(Object.assign({}, baseInput, shared, {
+    vehicleCondition: 'used', evFirstHeldFromJuly2022: false
+  }));
+  assert.strictEqual(older.fbt.exemptEv, false, 'first held before 1 July 2022');
+  assert.ok(older.netAnnualCost > recent.netAnnualCost, 'losing the exemption should cost more');
+});
+
+/* ------------------------- drive-away pricing ----------------------- */
+
+test('a drive-away price is not inflated by adding on-road costs again', () => {
+  const driveAway = R.purchaseCosts(Object.assign({}, baseInput, {
+    vehiclePrice: 50000, priceBasis: 'driveaway'
+  }));
+  near(driveAway.driveAwayPrice, 50000, 1);
+  assert.ok(driveAway.listPrice < 50000, 'the vehicle-only price must be backed out');
+  near(driveAway.listPrice + driveAway.stampDuty + driveAway.registration +
+       driveAway.ctp + driveAway.plateAndTransferFees + driveAway.luxuryCarTax, 50000, 1);
+});
+
+test('drive-away and before-on-roads agree when converted', () => {
+  const before = R.purchaseCosts(Object.assign({}, baseInput, {
+    vehiclePrice: 45000, dealerDelivery: 0, optionsAndAccessories: 0
+  }));
+  const driveAway = R.purchaseCosts(Object.assign({}, baseInput, {
+    vehiclePrice: before.driveAwayPrice, priceBasis: 'driveaway',
+    dealerDelivery: 0, optionsAndAccessories: 0
+  }));
+  near(driveAway.listPrice, 45000, 2);
+  near(driveAway.stampDuty, before.stampDuty, 2);
+});
+
+test('drive-away pricing still computes LCT on the vehicle, not the total', () => {
+  const c = R.purchaseCosts(Object.assign({}, baseInput, {
+    vehiclePrice: 95000, priceBasis: 'driveaway'
+  }));
+  near(c.driveAwayPrice, 95000, 2);
+  assert.ok(c.luxuryCarTax > 0);
+  assert.ok(c.fbtBaseValue < 95000, 'FBT base value excludes duty and registration');
+});
+
 /* --------------------------- comparison ----------------------------- */
 
 test('compareAll returns every product with affordability attached', () => {

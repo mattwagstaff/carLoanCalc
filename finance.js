@@ -290,17 +290,47 @@
   }
 
   /**
-   * Build the full drive-away cost from a list price.
+   * Build the full drive-away cost.
+   *
+   * `priceBasis: 'driveaway'` means the price entered already includes on-road
+   * costs. Stamp duty is a function of the vehicle's value, so the vehicle-only
+   * price cannot be found by subtraction — it is solved for by bisection, which
+   * keeps the LCT and FBT base value correct rather than approximate.
    */
   function purchaseCosts(input) {
+    if (input.priceBasis !== 'driveaway') return computeCosts(input);
+
+    var target = Math.max(0, num(input.vehiclePrice));
+    var probe = {};
+    for (var k in input) probe[k] = input[k];
+    probe.priceBasis = 'beforeOnRoads';
+    probe.dealerDelivery = 0;
+    probe.optionsAndAccessories = 0;
+
+    var lo = 0, hi = target;
+    for (var i = 0; i < 60; i++) {
+      var mid = (lo + hi) / 2;
+      probe.vehiclePrice = mid;
+      if (computeCosts(probe).driveAwayPrice > target) hi = mid; else lo = mid;
+    }
+    probe.vehiclePrice = (lo + hi) / 2;
+    var out = computeCosts(probe);
+    out.priceBasis = 'driveaway';
+    return out;
+  }
+
+  function computeCosts(input) {
     var cfg = input.constants || CONST;
     var list = num(input.vehiclePrice);
     var options = num(input.optionsAndAccessories);
     var delivery = num(input.dealerDelivery);
     var priceBeforeOnRoads = list + options + delivery;
 
-    var lct = input.includeLct === false ? 0
-      : luxuryCarTax(priceBeforeOnRoads, isFuelEfficient(input.fuelType), cfg);
+    // Luxury car tax is levied on the first retail sale, so a second-hand car
+    // does not attract it again.
+    var lctApplies = input.includeLct === false ? false
+      : input.vehicleCondition === 'used' ? false : true;
+    var lct = lctApplies ? luxuryCarTax(priceBeforeOnRoads, isFuelEfficient(input.fuelType), cfg) : 0;
 
     var dutiableValue = priceBeforeOnRoads + (input.dutyIncludesLct === false ? 0 : lct);
     var duty = input.stampDutyOverride != null && input.stampDutyOverride !== ''
@@ -481,13 +511,24 @@
    * Depreciation / equity
    * ------------------------------------------------------------------ */
 
-  function projectedValue(price, months, firstYearDropPct, ongoingPct) {
+  /**
+   * Declining-balance resale projection with a separate first-year drop.
+   *
+   * That steep first-year drop belongs to the first owner. A used car has
+   * already taken it, so `alreadyDepreciated` applies only the ongoing rate —
+   * which is why used cars hold their value better in percentage terms and fall
+   * out of negative equity sooner.
+   */
+  function projectedValue(price, months, firstYearDropPct, ongoingPct, alreadyDepreciated) {
     var firstYear = clamp(num(firstYearDropPct, 20) / 100, 0, 0.9);
     var ongoing = clamp(num(ongoingPct, 14) / 100, 0, 0.9);
     var years = months / 12;
+    if (alreadyDepreciated) return price * Math.pow(1 - ongoing, years);
     if (years <= 1) return price * Math.pow(1 - firstYear, years);
     return price * (1 - firstYear) * Math.pow(1 - ongoing, years - 1);
   }
+
+  function isUsed(input) { return input.vehicleCondition === 'used'; }
 
   /* ------------------------------------------------------------------ *
    * Running costs
@@ -623,7 +664,7 @@
       (input.capitaliseFees === false ? establishment : 0);
 
     var resale = projectedValue(costs.priceBeforeOnRoads + costs.luxuryCarTax, termMonths,
-      input.depreciationFirstYear, input.depreciationOngoing);
+      input.depreciationFirstYear, input.depreciationOngoing, isUsed(input));
 
     // Equity track: what you owe vs what the car is worth, month by month.
     var equity = [];
@@ -634,7 +675,7 @@
         month: m,
         owing: i === 0 ? financedAmount : sched.rows[i - 1].balance,
         value: projectedValue(costs.priceBeforeOnRoads + costs.luxuryCarTax, m,
-          input.depreciationFirstYear, input.depreciationOngoing)
+          input.depreciationFirstYear, input.depreciationOngoing, isUsed(input))
       });
     }
     var negativeEquityUntil = null;
@@ -698,6 +739,20 @@
       };
     }
     return result;
+  }
+
+  /**
+   * Which finance products make sense for the vehicle being bought.
+   *
+   * Guaranteed Future Value is a manufacturer program tied to a new or demo
+   * vehicle — there is no factory-backed guarantee to offer on a second-hand
+   * car, so it is dropped for used vehicles rather than quietly producing a
+   * number nobody could actually be offered.
+   */
+  function availableProducts(input) {
+    var all = ['secured', 'unsecured', 'dealer', 'gfv', 'chattel', 'financeLease', 'novated', 'cash'];
+    if (!isUsed(input)) return all;
+    return all.filter(function (p) { return p !== 'gfv'; });
   }
 
   var PRODUCT_LABELS = {
@@ -784,7 +839,11 @@
     var annualPackageCost = leasePaymentMonthly * 12 + runningPackagedAnnual + packagingFee;
 
     // FBT
+    // The exemption only reaches cars first held and used on or after
+    // 1 July 2022, so an older second-hand EV does not qualify even though it
+    // is under the threshold. The UI derives this flag from the vehicle's age.
     var isExemptEv = !!input.evFbtExempt && input.fuelType === 'ev' &&
+      input.evFirstHeldFromJuly2022 !== false &&
       costs.fbtBaseValue <= cfg.lctThresholdFuelEfficient;
     var statutoryTaxableValue = cfg.fbtStatutoryRate * costs.fbtBaseValue;
     var method = isExemptEv ? 'exempt' : (input.fbtMethod || 'ecm');
@@ -841,7 +900,7 @@
     var netCostOverTerm = netAnnualCost * years;
 
     var resale = projectedValue(costs.priceBeforeOnRoads + costs.luxuryCarTax, termMonths,
-      input.depreciationFirstYear, input.depreciationOngoing);
+      input.depreciationFirstYear, input.depreciationOngoing, isUsed(input));
     var residualInclGst = residual * (1 + cfg.gstRate);
 
     return {
@@ -904,7 +963,7 @@
       (1 - num(input.savingsTaxRate, 30) / 100);
     var running = runningCosts(input);
     var resale = projectedValue(costs.priceBeforeOnRoads + costs.luxuryCarTax, termMonths,
-      input.depreciationFirstYear, input.depreciationOngoing);
+      input.depreciationFirstYear, input.depreciationOngoing, isUsed(input));
     return {
       product: 'cash',
       label: PRODUCT_LABELS.cash,
@@ -1055,7 +1114,9 @@
 
   function compareAll(input) {
     var income = incomeSummary(input);
-    var products = ['secured', 'unsecured', 'dealer', 'gfv', 'chattel', 'financeLease'];
+    var products = availableProducts(input).filter(function (p) {
+      return p !== 'novated' && p !== 'cash';
+    });
     var rows = products.map(function (p) {
       // Each product carries its own rate and balloon treatment via loanModel.
       var m = loanModel(input, { product: p });
@@ -1123,6 +1184,7 @@
     projectedValue: projectedValue,
     runningCosts: runningCosts,
     productRate: productRate,
+    availableProducts: availableProducts,
     loanModel: loanModel,
     novatedModel: novatedModel,
     cashModel: cashModel,

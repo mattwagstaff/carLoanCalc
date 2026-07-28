@@ -79,6 +79,23 @@ Both suites run in CI on every pull request and every push to `main`
 | Finance lease | Payments in advance, residual, business deductions |
 | Cash | Opportunity cost of the money at an assumed after-tax return |
 
+**Two levels of detail**
+
+Revvy opens in **Simple** mode — purchase price, deposit, rate, term, balloon, income. Everything
+else uses a typical estimate, itemised in the results so nothing is assumed invisibly. **Detailed**
+exposes every input: on-road costs, fees, rate-change scenarios, novated lease settings and the tax
+assumptions themselves. Switching modes never changes a calculation, only what you can reach.
+
+**New, demo or used**
+
+The first question, because it changes what applies. Used cars skip luxury car tax (charged on the
+first retail sale only), lose the dealer delivery and factory options fields, cannot be financed
+with a Guaranteed Future Value product, take only ongoing depreciation rather than the steep
+first-year drop the original owner already absorbed, and — if first held before 1 July 2022 — do
+not qualify for the electric vehicle FBT exemption. Prices can be entered drive-away or before
+on-roads; a drive-away figure is solved backwards to separate the vehicle from the duty and
+registration inside it.
+
 **Costs it accounts for**
 
 - Luxury car tax, with separate fuel-efficient and standard thresholds

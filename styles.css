@@ -172,6 +172,20 @@ a { color: var(--accent-ink); }
 .inputs { position: sticky; top: 74px; max-height: calc(100vh - 96px); overflow-y: auto; padding-right: 2px; }
 @media (max-width: 980px) { .inputs { position: static; max-height: none; overflow: visible; } }
 
+.mode-switch { margin-bottom: .7rem; }
+.seg {
+  display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+.seg button {
+  flex: 1; font: inherit; font-size: .86rem; font-weight: 650; cursor: pointer;
+  padding: .4rem .5rem; border: 0; border-radius: 6px;
+  background: transparent; color: var(--ink-2);
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.mode-note { font-size: .76rem; color: var(--ink-3); margin: .45rem .15rem 0; line-height: 1.45; }
+
+.group[hidden] { display: none; }
 .group {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   margin-bottom: .7rem; box-shadow: var(--shadow); overflow: hidden;
