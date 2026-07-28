@@ -1,5 +1,7 @@
 # Revvy
 
+[![CI](https://github.com/mattwagstaff/carLoanCalc/actions/workflows/ci.yml/badge.svg)](https://github.com/mattwagstaff/carLoanCalc/actions/workflows/ci.yml)
+
 **Australian car finance, in numbers.**
 
 A calculator for every way an Australian can pay for a car — secured loans, dealer finance,
@@ -55,6 +57,10 @@ npm run test:all   # adds the browser smoke test (needs: npm install)
 
 `npm test` requires nothing but Node. The browser test needs Playwright, which is why it is a dev
 dependency and why it skips itself when it is not installed.
+
+Both suites run in CI on every pull request and every push to `main`
+(`.github/workflows/ci.yml`). The engine job deliberately installs nothing, which keeps the
+"no dependencies" claim honest rather than merely stated.
 
 ---
 
