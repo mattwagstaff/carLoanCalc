@@ -129,10 +129,19 @@ scenario save and load, and a check that nothing scrolls sideways on a phone.
 Pushes to `main` deploy to GitHub Pages automatically via
 `.github/workflows/pages.yml`. The workflow runs the engine tests as a gate, copies the four app
 files plus `.nojekyll` into `_site`, and publishes that — tests, `package.json` and the lockfile
-are not shipped. `actions/configure-pages` runs with `enablement: true`, so it switches Pages on
-by itself; there is nothing to enable in repository settings.
+are not shipped.
 
-GitHub Pages requires either a **public repository** or a **GitHub Pro** account. Note that a
+**One-time setup.** Pages has to be enabled by hand before the first deploy will succeed:
+
+> Settings → Pages → Build and deployment → **Source: GitHub Actions**
+
+The workflow cannot do this for you. `actions/configure-pages` offers an `enablement: true` option
+that creates the Pages site over the API, but it fails with the default `GITHUB_TOKEN`
+(`Resource not accessible by integration`) — that token's `pages: write` permission covers
+deploying to an existing site, not creating one, which needs repository admin rights. Making it
+work would mean minting and storing a personal access token to save a single click.
+
+GitHub Pages also requires either a **public repository** or a **GitHub Pro** account. Note that a
 Pages site built from a private repository is still publicly reachable — restricting who can view
 a Pages site needs GitHub Enterprise Cloud.
 
