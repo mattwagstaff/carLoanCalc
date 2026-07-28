@@ -126,10 +126,20 @@ scenario save and load, and a check that nothing scrolls sideways on a phone.
 
 ## Publishing
 
-The app is four static files. Any of these work with no configuration:
+Pushes to `main` deploy to GitHub Pages automatically via
+`.github/workflows/pages.yml`. The workflow runs the engine tests as a gate, copies the four app
+files plus `.nojekyll` into `_site`, and publishes that — tests, `package.json` and the lockfile
+are not shipped. `actions/configure-pages` runs with `enablement: true`, so it switches Pages on
+by itself; there is nothing to enable in repository settings.
 
-- **GitHub Pages** — enable Pages on the branch. `.nojekyll` is already present.
-- **Netlify / Vercel / Cloudflare Pages** — deploy the directory, no build command.
+GitHub Pages requires either a **public repository** or a **GitHub Pro** account. Note that a
+Pages site built from a private repository is still publicly reachable — restricting who can view
+a Pages site needs GitHub Enterprise Cloud.
+
+Nothing about the app depends on Pages. It is four static files, so it will also run on:
+
+- **Netlify / Vercel / Cloudflare Pages** — deploy the directory, no build command. All three
+  deploy from a private repository on their free tiers.
 - **Any web server** — copy `index.html`, `styles.css`, `app.js` and `finance.js` to the web root.
 
 There is no environment configuration, no API key and no build output.
