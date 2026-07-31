@@ -66,6 +66,16 @@
     gfv: function (s) { return s.product === 'gfv'; },
     // GFV sets its own residual, so the generic balloon controls do not apply.
     balloonable: function (s) { return is.loanProduct(s) && s.product !== 'gfv'; },
+    // Only offer the LCT toggle when there is LCT to argue about. Asked of the
+    // engine so drive-away pricing and used vehicles are handled exactly, and
+    // forced on so unticking it cannot hide the control that undoes the tick.
+    lctRelevant: function () {
+      try {
+        var i = toInput();
+        i.includeLct = true;
+        return R.purchaseCosts(i).luxuryCarTax > 0;
+      } catch (e) { return false; }
+    },
     used: function (s) { return s.vehicleCondition === 'used'; },
     // Dealer delivery and factory options are charges on a first sale. A used
     // car's advertised price already has them baked in.
@@ -90,6 +100,8 @@
         { id: 'actRating', label: 'ACT emissions rating', type: 'select', def: 'C', options: [['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']], showIf: is.act, help: 'ACT duty is based on the vehicle emissions rating.' },
         { id: 'dealerDelivery', label: 'Dealer delivery', type: 'number', prefix: '$', def: 2000, step: 100, min: 0, showIf: is.firstSale, help: 'Charged on a first sale. Not applicable to a used car.' },
         { id: 'optionsAndAccessories', label: 'Options & accessories', type: 'number', prefix: '$', def: 0, step: 250, min: 0, showIf: is.firstSale, help: 'Counts towards LCT, duty and the FBT base value.' },
+        { id: 'includeLct', label: 'Add luxury car tax', type: 'checkbox', def: true, simple: true, showIf: is.lctRelevant,
+          help: 'Untick if a campaign discounts the price by the LCT amount. It can’t be waived, only offset.' },
         { id: 'registrationCost', label: 'Registration (first year)', type: 'number', prefix: '$', def: 400, step: 50, min: 0, auto: 'onroads' },
         { id: 'ctpCost', label: 'CTP / green slip', type: 'number', prefix: '$', def: 620, step: 50, min: 0, auto: 'onroads' },
         { id: 'plateAndTransferFees', label: 'Plates & transfer fees', type: 'number', prefix: '$', def: 100, step: 10, min: 0 },
@@ -716,6 +728,17 @@
         ' of registration and fees inside it.');
     }
 
+    if (state.includeLct === false && is.lctRelevant()) {
+      var lctProbe = toInput();
+      lctProbe.includeLct = true;
+      var lctAmount = R.purchaseCosts(lctProbe).luxuryCarTax;
+      add('info', 'Luxury car tax of ' + $(lctAmount) + ' is excluded',
+        'Campaigns that advertise the luxury car tax as covered are discounting the price by ' +
+        'roughly that amount — the tax itself is levied on the supplier and cannot be waived. ' +
+        'Check the discount actually matches: it is a genuine saving only if the drive-away price ' +
+        'has moved by the full amount.');
+    }
+
     if (m.costs.luxuryCarTax > 0) {
       add('info', 'Luxury car tax applies: ' + $(m.costs.luxuryCarTax),
         'LCT is charged at ' + pct(R.CONST.lctRate * 100, 0) + ' on the value above the ' +
@@ -880,7 +903,20 @@
     // listed as zero — a used car has no dealer delivery to explain away.
     if (c.optionsAndAccessories > 0) purchase.push(['Options & accessories', $(c.optionsAndAccessories)]);
     if (c.dealerDelivery > 0) purchase.push(['Dealer delivery', $(c.dealerDelivery)]);
-    if (c.luxuryCarTax > 0) purchase.push(['Luxury car tax', $(c.luxuryCarTax), 'em']);
+    if (c.luxuryCarTax > 0) {
+      purchase.push(['Luxury car tax', $(c.luxuryCarTax), 'em']);
+    } else if (state.includeLct === false) {
+      // Show what was left out, so an excluded tax is never a silent omission.
+      var wouldBe = 0;
+      try {
+        var probe = toInput();
+        probe.includeLct = true;
+        wouldBe = R.purchaseCosts(probe).luxuryCarTax;
+      } catch (e) { /* leave at zero */ }
+      if (wouldBe > 0) {
+        purchase.push(['Luxury car tax — not added', '(' + $(wouldBe) + ')', 'muted']);
+      }
+    }
     purchase.push(['Stamp duty (' + esc(state.state) + ')', $(c.stampDuty)]);
     purchase.push(['Registration', $(c.registration)]);
     if (c.ctp > 0) purchase.push(['CTP', $(c.ctp)]);

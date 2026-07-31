@@ -407,6 +407,41 @@ test('an older used EV does not qualify for the FBT exemption', () => {
   assert.ok(older.netAnnualCost > recent.netAnnualCost, 'losing the exemption should cost more');
 });
 
+/* --------------------------- LCT toggle ----------------------------- */
+
+test('luxury car tax can be excluded when a campaign has offset it', () => {
+  const dear = Object.assign({}, baseInput, { vehiclePrice: 120000 });
+  const withLct = R.purchaseCosts(dear);
+  assert.ok(withLct.luxuryCarTax > 0);
+
+  const without = R.purchaseCosts(Object.assign({}, dear, { includeLct: false }));
+  assert.strictEqual(without.luxuryCarTax, 0);
+  near(without.driveAwayPrice, withLct.driveAwayPrice - withLct.luxuryCarTax -
+    (withLct.stampDuty - without.stampDuty), 1);
+  assert.ok(without.driveAwayPrice < withLct.driveAwayPrice, 'it should cost less');
+});
+
+test('excluding LCT also removes it from the FBT base value', () => {
+  const dear = Object.assign({}, baseInput, { vehiclePrice: 120000 });
+  const withLct = R.purchaseCosts(dear);
+  const without = R.purchaseCosts(Object.assign({}, dear, { includeLct: false }));
+  near(without.fbtBaseValue, withLct.fbtBaseValue - withLct.luxuryCarTax, 1);
+});
+
+test('the LCT toggle changes what is financed and repaid', () => {
+  const dear = Object.assign({}, baseInput, { vehiclePrice: 120000 });
+  const withLct = R.loanModel(dear);
+  const without = R.loanModel(Object.assign({}, dear, { includeLct: false }));
+  assert.ok(without.financedAmount < withLct.financedAmount);
+  assert.ok(without.payment < withLct.payment);
+});
+
+test('the toggle is a no-op below the threshold', () => {
+  const cheap = Object.assign({}, baseInput, { vehiclePrice: 40000 });
+  near(R.purchaseCosts(cheap).driveAwayPrice,
+       R.purchaseCosts(Object.assign({}, cheap, { includeLct: false })).driveAwayPrice, 0.01);
+});
+
 /* ------------------------- drive-away pricing ----------------------- */
 
 test('a drive-away price is not inflated by adding on-road costs again', () => {

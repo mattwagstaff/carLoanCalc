@@ -361,6 +361,41 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
     await choose('product', 'secured');
   });
 
+  await t.test('the LCT toggle appears only when there is LCT to exclude', async () => {
+    await choose('vehicleCondition', 'new');
+    await setField('vehiclePrice', '45000');
+    assert.strictEqual(await visible('includeLct'), false, 'no LCT below the threshold');
+
+    await setField('vehiclePrice', '120000');
+    assert.strictEqual(await visible('includeLct'), true, 'LCT applies, so offer the toggle');
+
+    // A used car never attracts LCT a second time, so there is nothing to toggle.
+    await choose('vehicleCondition', 'used');
+    assert.strictEqual(await visible('includeLct'), false);
+    await choose('vehicleCondition', 'new');
+  });
+
+  await t.test('excluding LCT lowers the drive-away price and says so', async () => {
+    await setField('vehiclePrice', '120000');
+    await page.click('.tab[data-tab="summary"]');
+    const grab = (t) => Number((t.match(/Drive-away price\s*\$([\d,]+)/) || [])[1].replace(/,/g, ''));
+
+    const before = await page.$eval('#panel-summary', (e) => e.innerText);
+    assert.ok(/Luxury car tax\s*\$/.test(before), 'LCT should be charged');
+
+    await page.evaluate(() => document.getElementById('f-includeLct').click());
+    const after = await page.$eval('#panel-summary', (e) => e.innerText);
+
+    assert.ok(grab(after) < grab(before), 'the drive-away price must fall');
+    assert.ok(/not added/.test(after), 'the omission must be stated, not silent');
+    // the toggle must remain reachable to undo it
+    assert.strictEqual(await visible('includeLct'), true);
+
+    await page.evaluate(() => document.getElementById('f-includeLct').click());
+    assert.strictEqual(grab(await page.$eval('#panel-summary', (e) => e.innerText)), grab(before));
+    await setField('vehiclePrice', '45000');
+  });
+
   await t.test('inputs persist across a reload', async () => {
     await page.selectOption('#f-termMonths', '84');
     await page.reload();
