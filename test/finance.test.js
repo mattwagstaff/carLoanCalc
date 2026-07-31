@@ -440,6 +440,91 @@ test('drive-away pricing still computes LCT on the vehicle, not the total', () =
   assert.ok(c.fbtBaseValue < 95000, 'FBT base value excludes duty and registration');
 });
 
+/* ------------------ per-product rates and percentages --------------- */
+
+test('each product uses its own rate, not the secured rate', () => {
+  const i = Object.assign({}, baseInput, {
+    interestRate: 7, unsecuredRate: 12, dealerRate: 4.99, gfvRate: 6.5, novatedRate: 8.25
+  });
+  assert.strictEqual(R.productRate(i, 'secured'), 7);
+  assert.strictEqual(R.productRate(i, 'unsecured'), 12);
+  assert.strictEqual(R.productRate(i, 'dealer'), 4.99);
+  assert.strictEqual(R.productRate(i, 'gfv'), 6.5);
+  assert.strictEqual(R.productRate(i, 'novated'), 8.25);
+  assert.strictEqual(R.productRate(i, 'chattel'), 7, 'business loans use the base rate');
+});
+
+test('the GFV rate actually drives the GFV repayment', () => {
+  const cheap = R.loanModel(Object.assign({}, baseInput, { product: 'gfv', gfvRate: 3 }));
+  const dear = R.loanModel(Object.assign({}, baseInput, { product: 'gfv', gfvRate: 12 }));
+  assert.ok(dear.payment > cheap.payment, 'a higher GFV rate must cost more');
+  assert.strictEqual(cheap.annualRate, 3);
+});
+
+test('the old unsecured premium still works for saved scenarios', () => {
+  const legacy = Object.assign({}, baseInput, { interestRate: 7, unsecuredPremium: 4 });
+  assert.strictEqual(R.productRate(legacy, 'unsecured'), 11);
+  // an explicit rate wins over the premium
+  legacy.unsecuredRate = 9.5;
+  assert.strictEqual(R.productRate(legacy, 'unsecured'), 9.5);
+});
+
+test('deposit can be a percentage of the drive-away price', () => {
+  const costs = R.purchaseCosts(baseInput);
+  const pct = R.loanModel(Object.assign({}, baseInput, {
+    depositBasis: 'percent', depositPercent: 20
+  }));
+  near(pct.deposit, costs.driveAwayPrice * 0.2, 1);
+  const flat = R.loanModel(Object.assign({}, baseInput, { deposit: pct.deposit }));
+  near(flat.financedAmount, pct.financedAmount, 1);
+});
+
+test('GFV can be a percentage of the drive-away price', () => {
+  const costs = R.purchaseCosts(baseInput);
+  const m = R.loanModel(Object.assign({}, baseInput, {
+    product: 'gfv', gfvBasis: 'percent', gfvPercent: 40
+  }));
+  near(m.balloon, costs.driveAwayPrice * 0.4, 1);
+});
+
+test('running costs can be excluded entirely', () => {
+  const without = R.runningCosts(Object.assign({}, baseInput, { includeRunningCosts: false }));
+  assert.strictEqual(without.annualTotal, 0);
+  assert.strictEqual(without.excluded, true);
+  const m = R.loanModel(Object.assign({}, baseInput, { includeRunningCosts: false }));
+  assert.strictEqual(m.runningOverTerm, 0);
+  const withCosts = R.loanModel(baseInput);
+  assert.ok(m.totalCostOfOwnership < withCosts.totalCostOfOwnership);
+  assert.ok(isFinite(m.costPerKm), 'cost per km must stay finite');
+});
+
+test('salary can be entered per week, fortnight or month', () => {
+  const annual = R.incomeSummary(Object.assign({}, baseInput, {
+    grossSalary: 104000, salaryFrequency: 'annual'
+  }));
+  const weekly = R.incomeSummary(Object.assign({}, baseInput, {
+    grossSalary: 2000, salaryFrequency: 'weekly'
+  }));
+  const fortnightly = R.incomeSummary(Object.assign({}, baseInput, {
+    grossSalary: 4000, salaryFrequency: 'fortnightly'
+  }));
+  const monthly = R.incomeSummary(Object.assign({}, baseInput, {
+    grossSalary: 104000 / 12, salaryFrequency: 'monthly'
+  }));
+  near(weekly.gross, 104000, 1);
+  near(fortnightly.gross, 104000, 1);
+  near(monthly.gross, 104000, 1);
+  near(annual.net, weekly.net, 1);
+});
+
+test('a missing salary frequency is treated as annual', () => {
+  const a = R.incomeSummary(Object.assign({}, baseInput, { grossSalary: 95000 }));
+  const b = R.incomeSummary(Object.assign({}, baseInput, {
+    grossSalary: 95000, salaryFrequency: 'annual'
+  }));
+  assert.strictEqual(a.gross, b.gross);
+});
+
 /* --------------------------- comparison ----------------------------- */
 
 test('compareAll returns every product with affordability attached', () => {

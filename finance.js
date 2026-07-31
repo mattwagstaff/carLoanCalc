@@ -535,6 +535,14 @@
    * ------------------------------------------------------------------ */
 
   function runningCosts(input) {
+    // Running costs can be left out entirely for anyone who only wants to look
+    // at the finance itself.
+    if (input.includeRunningCosts === false) {
+      return {
+        items: { energy: 0, insurance: 0, registration: 0, servicing: 0, tyres: 0, roadside: 0, other: 0 },
+        annualTotal: 0, perKm: 0, excluded: true
+      };
+    }
     var km = Math.max(0, num(input.annualKm));
     var energy;
     if (input.fuelType === 'ev') {
@@ -569,10 +577,31 @@
    */
   function productRate(input, product) {
     var base = num(input.interestRate, 7);
-    if (product === 'unsecured') return base + num(input.unsecuredPremium, 3.5);
+    // Each product carries its own rate. unsecuredPremium is the pre-1.1 way of
+    // expressing it and is still honoured for saved scenarios.
+    if (product === 'unsecured') {
+      return input.unsecuredRate != null && input.unsecuredRate !== ''
+        ? num(input.unsecuredRate) : base + num(input.unsecuredPremium, 3.5);
+    }
     if (product === 'dealer') return num(input.dealerRate, base);
     if (product === 'gfv') return num(input.gfvRate, base);
+    if (product === 'novated') return num(input.novatedRate, base);
     return base;
+  }
+
+  /** Deposit and balloon can each be given as a dollar figure or a percentage. */
+  function resolveDeposit(input, price) {
+    if (input.depositBasis === 'percent') {
+      return price * clamp(num(input.depositPercent), 0, 100) / 100;
+    }
+    return num(input.deposit);
+  }
+
+  function resolveGfv(input, price) {
+    if (input.gfvBasis === 'percent') {
+      return price * clamp(num(input.gfvPercent), 0, 90) / 100;
+    }
+    return num(input.gfvAmount);
   }
 
   function resolveBalloon(input, financedAmount, termMonths) {
@@ -615,7 +644,7 @@
       }
     }
 
-    var deposit = num(input.deposit);
+    var deposit = resolveDeposit(input, price);
     var tradeIn = num(input.tradeInValue);
     var tradePayout = num(input.tradeInPayout);
     var netTrade = tradeIn - tradePayout;
@@ -625,7 +654,7 @@
 
     // A GFV product's balloon *is* the guaranteed future value.
     var balloon = overrides.balloon != null ? overrides.balloon
-      : product === 'gfv' ? num(input.gfvAmount)
+      : product === 'gfv' ? resolveGfv(input, price)
       : resolveBalloon(input, financedAmount, termMonths);
     balloon = Math.min(balloon, financedAmount * 0.95);
 
@@ -809,7 +838,7 @@
     var gstSaving = Math.min(costs.priceBeforeOnRoads / 11, cfg.carLimit / 11);
     var financedBase = costs.priceBeforeOnRoads + costs.luxuryCarTax - gstSaving +
       costs.stampDuty + costs.registration + costs.ctp + costs.plateAndTransferFees;
-    var financedAmount = Math.max(0, financedBase - num(input.deposit) -
+    var financedAmount = Math.max(0, financedBase - resolveDeposit(input, costs.driveAwayPrice) -
       (num(input.tradeInValue) - num(input.tradeInPayout)) + num(input.establishmentFee));
 
     var residualPct = input.residualMode === 'custom'
@@ -945,7 +974,8 @@
       taxAfter: packagedTax,
       projectedResale: resale,
       equityAtEnd: resale - residualInclGst,
-      totalCostOfOwnership: netCostOverTerm + num(input.deposit) - resale + residualInclGst,
+      totalCostOfOwnership: netCostOverTerm + resolveDeposit(input, costs.driveAwayPrice) -
+        resale + residualInclGst,
       annualKm: num(input.annualKm)
     };
   }
@@ -992,8 +1022,12 @@
    * Income, affordability and ratios
    * ------------------------------------------------------------------ */
 
+  var SALARY_PERIODS = { annual: 1, monthly: 12, fortnightly: 26, weekly: 52 };
+
   function grossPackageIncome(input) {
-    var salary = Math.max(0, num(input.grossSalary));
+    // Salary may be quoted per week, fortnight, month or year.
+    var perYear = SALARY_PERIODS[input.salaryFrequency] || 1;
+    var salary = Math.max(0, num(input.grossSalary)) * perYear;
     if (input.salaryIncludesSuper) salary = salary / (1 + CONST.superGuarantee);
     return salary + num(input.otherIncome);
   }
@@ -1185,6 +1219,9 @@
     runningCosts: runningCosts,
     productRate: productRate,
     availableProducts: availableProducts,
+    resolveDeposit: resolveDeposit,
+    resolveGfv: resolveGfv,
+    SALARY_PERIODS: SALARY_PERIODS,
     loanModel: loanModel,
     novatedModel: novatedModel,
     cashModel: cashModel,

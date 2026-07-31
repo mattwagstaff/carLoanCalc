@@ -94,7 +94,11 @@
         { id: 'ctpCost', label: 'CTP / green slip', type: 'number', prefix: '$', def: 620, step: 50, min: 0, auto: 'onroads' },
         { id: 'plateAndTransferFees', label: 'Plates & transfer fees', type: 'number', prefix: '$', def: 100, step: 10, min: 0 },
         { id: 'stampDutyOverride', label: 'Stamp duty override', type: 'number', prefix: '$', def: '', step: 100, min: 0, help: 'Leave blank to use the calculated state scale.' },
-        { id: 'deposit', label: 'Cash deposit', type: 'number', prefix: '$', def: 5000, step: 500, min: 0, simple: true },
+        { id: 'depositBasis', label: 'Deposit as', type: 'segmented', def: 'amount', simple: true, options: [['amount', '$ amount'], ['percent', '% of price']] },
+        { id: 'deposit', label: 'Cash deposit', type: 'number', prefix: '$', def: 5000, step: 500, min: 0, simple: true,
+          showIf: function (s) { return s.depositBasis !== 'percent'; } },
+        { id: 'depositPercent', label: 'Cash deposit', type: 'number', suffix: '% of drive-away', def: 10, step: 1, min: 0, max: 100, simple: true,
+          showIf: function (s) { return s.depositBasis === 'percent'; } },
         { id: 'tradeInValue', label: 'Trade-in value', type: 'number', prefix: '$', def: 0, step: 500, min: 0, simple: true },
         { id: 'tradeInPayout', label: 'Trade-in payout owing', type: 'number', prefix: '$', def: 0, step: 500, min: 0, help: 'Existing finance rolled into the new loan.' }
       ]
@@ -121,7 +125,16 @@
             });
           },
           options: [] },
-        { id: 'interestRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 7.45, step: 0.05, min: 0, max: 40, simple: true, help: 'The secured car loan rate. Other products use their own rate below.' },
+        { id: 'interestRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 7.45, step: 0.05, min: 0, max: 40, simple: true,
+          showIf: function (s) { return ['secured', 'chattel', 'financeLease'].indexOf(s.product) !== -1; } },
+        { id: 'unsecuredRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 10.95, step: 0.05, min: 0, max: 40, simple: true,
+          showIf: function (s) { return s.product === 'unsecured'; }, help: 'Unsecured personal loans price well above secured car loans.' },
+        { id: 'dealerRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 4.99, step: 0.05, min: 0, max: 40, simple: true,
+          showIf: function (s) { return s.product === 'dealer'; }, help: 'Sharp advertised rates often come with a firmer price or a compulsory balloon.' },
+        { id: 'gfvRate', label: 'Interest rate', type: 'number', suffix: '% p.a.', def: 6.99, step: 0.05, min: 0, max: 40, simple: true,
+          showIf: is.gfv },
+        { id: 'novatedRate', label: 'Lease finance rate', type: 'number', suffix: '% p.a.', def: 7.95, step: 0.05, min: 0, max: 40, simple: true,
+          showIf: is.novated },
         { id: 'termMonths', label: 'Loan term', type: 'select', def: 60, simple: true, options: [[12, '1 year'], [24, '2 years'], [36, '3 years'], [48, '4 years'], [60, '5 years'], [72, '6 years'], [84, '7 years']] },
         { id: 'paymentFrequency', label: 'Pay & repayment cycle', type: 'segmented', def: 'monthly', simple: true, options: [['weekly', 'Weekly'], ['fortnightly', 'Fortnightly'], ['monthly', 'Monthly']], help: 'Used for both your repayments and your take-home pay.' },
         { id: 'balloonMode', label: 'Balloon / residual', type: 'select', def: 'none', simple: true, showIf: is.balloonable, options: [
@@ -130,8 +143,11 @@
         ] },
         { id: 'balloonPercent', label: 'Balloon percentage', type: 'number', suffix: '%', def: 30, step: 1, min: 0, max: 60, simple: true, showIf: function (s) { return is.balloonable(s) && s.balloonMode === 'percent'; } },
         { id: 'balloonAmount', label: 'Balloon amount', type: 'number', prefix: '$', def: 12000, step: 500, min: 0, simple: true, showIf: function (s) { return is.balloonable(s) && s.balloonMode === 'amount'; } },
-        { id: 'gfvAmount', label: 'Guaranteed Future Value', type: 'number', prefix: '$', def: 18000, step: 500, min: 0, simple: true, showIf: is.gfv, help: 'The value the manufacturer guarantees at the end of the term. This replaces the balloon.' },
-        { id: 'gfvRate', label: 'GFV finance rate', type: 'number', suffix: '% p.a.', def: 6.99, step: 0.05, min: 0, simple: true, showIf: is.gfv },
+        { id: 'gfvBasis', label: 'Guaranteed Future Value as', type: 'segmented', def: 'amount', simple: true, showIf: is.gfv, options: [['amount', '$ amount'], ['percent', '% of price']] },
+        { id: 'gfvAmount', label: 'Guaranteed Future Value', type: 'number', prefix: '$', def: 18000, step: 500, min: 0, simple: true,
+          showIf: function (s) { return is.gfv(s) && s.gfvBasis !== 'percent'; }, help: 'The value the manufacturer guarantees at the end of the term. This replaces the balloon.' },
+        { id: 'gfvPercent', label: 'Guaranteed Future Value', type: 'number', suffix: '% of drive-away', def: 40, step: 1, min: 0, max: 90, simple: true,
+          showIf: function (s) { return is.gfv(s) && s.gfvBasis === 'percent'; }, help: 'Manufacturer programs usually quote 35–55% over three to five years.' },
         { id: 'gfvAnnualKm', label: 'GFV kilometre allowance', type: 'number', suffix: 'km/yr', def: 15000, step: 1000, min: 0, showIf: is.gfv },
         { id: 'gfvExcessKmRate', label: 'Excess kilometre charge', type: 'number', prefix: '$', def: 0.15, step: 0.01, min: 0, showIf: is.gfv, help: 'Charged per kilometre over the allowance.' },
         { id: 'establishmentFee', label: 'Establishment fee', type: 'number', prefix: '$', def: 400, step: 50, min: 0 },
@@ -142,32 +158,33 @@
         { id: 'rateChange1Rate', label: 'New rate', type: 'number', suffix: '% p.a.', def: 8.45, step: 0.05, min: 0, showIf: function (s) { return is.loanProduct(s) && +s.rateChange1After > 0; } },
         { id: 'rateChange2After', label: 'Second change after', type: 'number', suffix: 'months', def: 0, step: 6, min: 0, showIf: function (s) { return is.loanProduct(s) && +s.rateChange1After > 0; } },
         { id: 'rateChange2Rate', label: 'Then', type: 'number', suffix: '% p.a.', def: 7.45, step: 0.05, min: 0, showIf: function (s) { return is.loanProduct(s) && +s.rateChange2After > 0; } },
-        { id: 'dealerRate', label: 'Dealer finance rate', type: 'number', suffix: '% p.a.', def: 4.99, step: 0.05, min: 0, help: 'Used on the Compare tab. Low advertised rates often come with a firmer price.' },
-        { id: 'unsecuredPremium', label: 'Unsecured rate premium', type: 'number', suffix: '%', def: 3.5, step: 0.25, min: 0, help: 'How much more an unsecured personal loan charges.' }
       ]
     },
     {
       id: 'running', title: 'Running costs', open: false,
       blurb: 'The real cost of a car is rarely the repayment. These feed cost per kilometre and the novated lease budget.',
       fields: [
-        { id: 'annualKm', label: 'Kilometres per year', type: 'number', suffix: 'km', def: 15000, step: 1000, min: 0, simple: true },
-        { id: 'fuelEconomy', label: 'Fuel use', type: 'number', suffix: 'L/100km', def: 7.5, step: 0.1, min: 0, showIf: is.liquidFuel },
-        { id: 'fuelPrice', label: 'Fuel price', type: 'number', prefix: '$', suffix: '/L', def: 1.95, step: 0.05, min: 0, showIf: is.liquidFuel },
-        { id: 'energyUse', label: 'Energy use', type: 'number', suffix: 'kWh/100km', def: 16, step: 0.5, min: 0, showIf: is.ev },
-        { id: 'electricityPrice', label: 'Electricity price', type: 'number', suffix: 'c/kWh', def: 30, step: 1, min: 0, showIf: is.ev },
-        { id: 'insuranceCost', label: 'Insurance', type: 'number', prefix: '$', suffix: '/yr', def: 1500, step: 100, min: 0 },
-        { id: 'annualRegistration', label: 'Registration & CTP renewal', type: 'number', prefix: '$', suffix: '/yr', def: 900, step: 50, min: 0, auto: 'onroads' },
-        { id: 'servicingCost', label: 'Servicing & repairs', type: 'number', prefix: '$', suffix: '/yr', def: 700, step: 50, min: 0 },
-        { id: 'tyresCost', label: 'Tyres', type: 'number', prefix: '$', suffix: '/yr', def: 350, step: 50, min: 0 },
-        { id: 'roadsideCost', label: 'Roadside assistance', type: 'number', prefix: '$', suffix: '/yr', def: 120, step: 10, min: 0 },
-        { id: 'otherRunningCost', label: 'Tolls, parking, other', type: 'number', prefix: '$', suffix: '/yr', def: 0, step: 100, min: 0 }
+        { id: 'includeRunningCosts', label: 'Include running costs in the analysis', type: 'checkbox', def: true, simple: true, help: 'Turn off to look at the finance on its own.' },
+        { id: 'annualKm', label: 'Kilometres per year', type: 'number', suffix: 'km', def: 15000, step: 1000, min: 0, simple: true,
+          showIf: function (s) { return s.includeRunningCosts !== false; } },
+        { id: 'fuelEconomy', label: 'Fuel use', type: 'number', suffix: 'L/100km', def: 7.5, step: 0.1, min: 0, showIf: function (s) { return s.includeRunningCosts !== false && is.liquidFuel(s); } },
+        { id: 'fuelPrice', label: 'Fuel price', type: 'number', prefix: '$', suffix: '/L', def: 1.95, step: 0.05, min: 0, showIf: function (s) { return s.includeRunningCosts !== false && is.liquidFuel(s); } },
+        { id: 'energyUse', label: 'Energy use', type: 'number', suffix: 'kWh/100km', def: 16, step: 0.5, min: 0, showIf: function (s) { return s.includeRunningCosts !== false && is.ev(s); } },
+        { id: 'electricityPrice', label: 'Electricity price', type: 'number', suffix: 'c/kWh', def: 30, step: 1, min: 0, showIf: function (s) { return s.includeRunningCosts !== false && is.ev(s); } },
+        { id: 'insuranceCost', label: 'Insurance', type: 'number', prefix: '$', suffix: '/yr', def: 1500, step: 100, min: 0, showIf: function (s) { return s.includeRunningCosts !== false; } },
+        { id: 'annualRegistration', label: 'Registration & CTP renewal', type: 'number', prefix: '$', suffix: '/yr', def: 900, step: 50, min: 0, auto: 'onroads', showIf: function (s) { return s.includeRunningCosts !== false; } },
+        { id: 'servicingCost', label: 'Servicing & repairs', type: 'number', prefix: '$', suffix: '/yr', def: 700, step: 50, min: 0, showIf: function (s) { return s.includeRunningCosts !== false; } },
+        { id: 'tyresCost', label: 'Tyres', type: 'number', prefix: '$', suffix: '/yr', def: 350, step: 50, min: 0, showIf: function (s) { return s.includeRunningCosts !== false; } },
+        { id: 'roadsideCost', label: 'Roadside assistance', type: 'number', prefix: '$', suffix: '/yr', def: 120, step: 10, min: 0, showIf: function (s) { return s.includeRunningCosts !== false; } },
+        { id: 'otherRunningCost', label: 'Tolls, parking, other', type: 'number', prefix: '$', suffix: '/yr', def: 0, step: 100, min: 0, showIf: function (s) { return s.includeRunningCosts !== false; } }
       ]
     },
     {
       id: 'income', title: 'Your income', open: true,
       blurb: 'Optional, but this is where Revvy gets useful: repayments as a share of what you actually take home.',
       fields: [
-        { id: 'grossSalary', label: 'Gross salary', type: 'number', prefix: '$', suffix: '/yr', def: 95000, step: 1000, min: 0, simple: true },
+        { id: 'grossSalary', label: 'Gross salary', type: 'number', prefix: '$', def: 95000, step: 1000, min: 0, simple: true },
+        { id: 'salaryFrequency', label: 'Salary is per', type: 'segmented', def: 'annual', simple: true, options: [['weekly', 'Week'], ['fortnightly', 'Fortnight'], ['monthly', 'Month'], ['annual', 'Year']] },
         { id: 'salaryIncludesSuper', label: 'That figure includes super', type: 'checkbox', def: false, simple: true },
         { id: 'otherIncome', label: 'Other taxable income', type: 'number', prefix: '$', suffix: '/yr', def: 0, step: 1000, min: 0 },
         { id: 'partnerIncome', label: 'Partner income', type: 'number', prefix: '$', suffix: '/yr', def: 0, step: 1000, min: 0, help: 'Used for household ratios and family thresholds.' },
@@ -189,7 +206,6 @@
       id: 'novated', title: 'Novated lease', open: true, showIf: is.novated,
       blurb: 'Only relevant if your employer offers salary packaging. Figures are indicative — your packager will quote differently.',
       fields: [
-        { id: 'novatedRate', label: 'Lease finance rate', type: 'number', suffix: '% p.a.', def: 7.95, step: 0.05, min: 0 },
         { id: 'residualMode', label: 'Residual value', type: 'select', def: 'ato', options: [['ato', 'ATO minimum for the term'], ['custom', 'Custom percentage']] },
         { id: 'residualPercent', label: 'Residual percentage', type: 'number', suffix: '%', def: 28.13, step: 0.01, min: 0, max: 70, showIf: function (s) { return s.residualMode === 'custom'; } },
         { id: 'fbtMethod', label: 'FBT treatment', type: 'select', def: 'ecm', options: [['ecm', 'Employee Contribution Method'], ['fbt', 'Employer pays FBT']], help: 'ECM uses post-tax contributions to reduce the FBT taxable value to nil.' },
@@ -901,6 +917,14 @@
 
     // Cost of ownership
     var rc = m.running.items;
+    if (m.running.excluded) {
+      html += card('Running costs',
+        '<p class="blurb">Running costs are excluded, so the figures above cover the finance only. ' +
+        'Fuel, insurance, registration, servicing and tyres routinely add ' +
+        '$3,000–$6,000 a year on an ordinary car — enough to change whether something is ' +
+        'affordable.</p>',
+        'Turn them back on in the Running costs section to see the full cost of ownership.');
+    }
     var own = [
       ['Fuel or electricity', $(rc.energy)],
       ['Insurance', $(rc.insurance)],
@@ -913,7 +937,7 @@
       ['<strong>Running costs per year</strong>', '<strong>' + $(m.running.annualTotal) + '</strong>', 'total'],
       ['Per week', $(m.running.annualTotal / 52), 'muted']
     ];
-    html += card('Running costs', table(own));
+    if (!m.running.excluded) html += card('Running costs', table(own));
 
     var years = m.termMonths / 12;
     var tco = [
