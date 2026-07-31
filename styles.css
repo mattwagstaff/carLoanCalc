@@ -225,11 +225,24 @@ a { color: var(--accent-ink); }
 .control { position: relative; display: flex; align-items: center; }
 .control .affix {
   position: absolute; font-size: .78rem; color: var(--ink-3); pointer-events: none;
+  white-space: nowrap;
 }
 .control .affix.pre { left: .55rem; }
-.control .affix.post { right: .55rem; }
-.control.has-prefix input { padding-left: 1.35rem; }
-.control.has-suffix input { padding-right: 3.9rem; }
+
+/* The suffix sits clear of the number input's spinner, and the input reserves
+   padding from the suffix's real width — set per field as --suffix-w. */
+.control .affix.post { right: var(--spinner-w); }
+.control.has-prefix input { padding-left: calc(var(--prefix-w, 1ch) + .85rem); }
+.control.has-suffix input {
+  padding-right: calc(var(--suffix-w, 3ch) + var(--spinner-w) + .5rem);
+}
+
+.control { --spinner-w: 1.6rem; }
+/* Firefox only paints spinners on hover/focus and they are narrower. */
+@supports (-moz-appearance: none) { .control { --spinner-w: 1rem; } }
+/* Without a spinner there is nothing to avoid. */
+.control:has(input[type="number"][readonly]),
+.control:not(:has(input[type="number"])) { --spinner-w: .55rem; }
 
 /* ---------------------- segmented buttons & cards --------------------- */
 
