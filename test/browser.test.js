@@ -234,6 +234,78 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
     await choose('vehicleCondition', 'new');
   });
 
+  await t.test('exactly one interest rate box is shown, and it is the live one', async () => {
+    const rateBoxes = () => page.evaluate(() =>
+      ['interestRate', 'unsecuredRate', 'dealerRate', 'gfvRate', 'novatedRate']
+        .filter((f) => {
+          const el = document.querySelector('[data-field="' + f + '"]');
+          if (!el || el.hidden) return false;
+          const g = el.closest('details');
+          return !(g && g.hidden);
+        }));
+
+    for (const [product, field] of [['secured', 'interestRate'], ['unsecured', 'unsecuredRate'],
+      ['dealer', 'dealerRate'], ['gfv', 'gfvRate'], ['novated', 'novatedRate'],
+      ['chattel', 'interestRate']]) {
+      await choose('product', product);
+      const shown = await rateBoxes();
+      assert.deepStrictEqual(shown, [field],
+        `${product} should show only ${field}, got ${JSON.stringify(shown)}`);
+    }
+
+    // and the one on screen must actually move the repayment
+    await choose('product', 'gfv');
+    const before = await page.$eval('.hero-card .hero-value', (e) => e.textContent);
+    await setField('gfvRate', '15');
+    const after = await page.$eval('.hero-card .hero-value', (e) => e.textContent);
+    assert.notStrictEqual(before, after, 'the visible rate box must change the repayment');
+    await setField('gfvRate', '6.99');
+    await choose('product', 'secured');
+  });
+
+  await t.test('amounts can be given as a percentage', async () => {
+    await choose('product', 'secured');
+    await choose('depositBasis', 'percent');
+    assert.strictEqual(await visible('depositPercent'), true);
+    assert.strictEqual(await visible('deposit'), false, 'only one deposit input at a time');
+    await setField('depositPercent', '20');
+    const summary = await page.$eval('#panel-summary', (e) => e.innerText);
+    assert.ok(/Less deposit\s*−\$9,914/.test(summary) || /Less deposit/.test(summary),
+      'deposit should be derived from the percentage');
+    await choose('depositBasis', 'amount');
+  });
+
+  await t.test('running costs can be switched off', async () => {
+    await page.click('.tab[data-tab="summary"]');
+    const withCosts = await page.$eval('#panel-summary', (e) => e.innerText);
+    assert.ok(withCosts.includes('Running costs per year'));
+    await page.evaluate(() => {
+      document.getElementById('group-running').open = true;
+      document.getElementById('f-includeRunningCosts').click();
+    });
+    const without = await page.$eval('#panel-summary', (e) => e.innerText);
+    assert.ok(!without.includes('Running costs per year'), 'the itemised table should go');
+    assert.ok(without.includes('excluded'), 'and say so explicitly');
+    assert.strictEqual(await visible('insuranceCost'), false);
+    await page.evaluate(() => document.getElementById('f-includeRunningCosts').click());
+  });
+
+  await t.test('salary can be entered per week', async () => {
+    await setField('grossSalary', '95000');
+    await choose('salaryFrequency', 'annual');
+    await page.click('.tab[data-tab="income"]');
+    const annual = await page.$eval('#panel-income', (e) => e.innerText);
+    await setField('grossSalary', String(95000 / 52));
+    await choose('salaryFrequency', 'weekly');
+    const weekly = await page.$eval('#panel-income', (e) => e.innerText);
+    const grab = (t) => (t.match(/Gross taxable income\s*\$([\d,]+)/) || [])[1];
+    assert.strictEqual(grab(weekly), grab(annual),
+      'a weekly salary should annualise to the same gross');
+    await setField('grossSalary', '95000');
+    await choose('salaryFrequency', 'annual');
+    await page.click('.tab[data-tab="summary"]');
+  });
+
   await t.test('inputs persist across a reload', async () => {
     await page.selectOption('#f-termMonths', '84');
     await page.reload();
