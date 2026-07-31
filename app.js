@@ -97,7 +97,7 @@
         { id: 'depositBasis', label: 'Deposit as', type: 'segmented', def: 'amount', simple: true, options: [['amount', '$ amount'], ['percent', '% of price']] },
         { id: 'deposit', label: 'Cash deposit', type: 'number', prefix: '$', def: 5000, step: 500, min: 0, simple: true,
           showIf: function (s) { return s.depositBasis !== 'percent'; } },
-        { id: 'depositPercent', label: 'Cash deposit', type: 'number', suffix: '% of drive-away', def: 10, step: 1, min: 0, max: 100, simple: true,
+        { id: 'depositPercent', label: 'Cash deposit', type: 'number', suffix: '%', def: 10, step: 1, min: 0, max: 100, simple: true, help: 'Percentage of the drive-away price.',
           showIf: function (s) { return s.depositBasis === 'percent'; } },
         { id: 'tradeInValue', label: 'Trade-in value', type: 'number', prefix: '$', def: 0, step: 500, min: 0, simple: true },
         { id: 'tradeInPayout', label: 'Trade-in payout owing', type: 'number', prefix: '$', def: 0, step: 500, min: 0, help: 'Existing finance rolled into the new loan.' }
@@ -146,8 +146,8 @@
         { id: 'gfvBasis', label: 'Guaranteed Future Value as', type: 'segmented', def: 'amount', simple: true, showIf: is.gfv, options: [['amount', '$ amount'], ['percent', '% of price']] },
         { id: 'gfvAmount', label: 'Guaranteed Future Value', type: 'number', prefix: '$', def: 18000, step: 500, min: 0, simple: true,
           showIf: function (s) { return is.gfv(s) && s.gfvBasis !== 'percent'; }, help: 'The value the manufacturer guarantees at the end of the term. This replaces the balloon.' },
-        { id: 'gfvPercent', label: 'Guaranteed Future Value', type: 'number', suffix: '% of drive-away', def: 40, step: 1, min: 0, max: 90, simple: true,
-          showIf: function (s) { return is.gfv(s) && s.gfvBasis === 'percent'; }, help: 'Manufacturer programs usually quote 35–55% over three to five years.' },
+        { id: 'gfvPercent', label: 'Guaranteed Future Value', type: 'number', suffix: '%', def: 40, step: 1, min: 0, max: 90, simple: true,
+          showIf: function (s) { return is.gfv(s) && s.gfvBasis === 'percent'; }, help: 'Percentage of the drive-away price. Manufacturer programs usually quote 35–55% over three to five years.' },
         { id: 'gfvAnnualKm', label: 'GFV kilometre allowance', type: 'number', suffix: 'km/yr', def: 15000, step: 1000, min: 0, showIf: is.gfv },
         { id: 'gfvExcessKmRate', label: 'Excess kilometre charge', type: 'number', prefix: '$', def: 0.15, step: 0.01, min: 0, showIf: is.gfv, help: 'Charged per kilometre over the allowance.' },
         { id: 'establishmentFee', label: 'Establishment fee', type: 'number', prefix: '$', def: 400, step: 50, min: 0 },
@@ -375,9 +375,17 @@
     if (f.step != null) attrs.push('step="' + f.step + '"');
     if (f.min != null) attrs.push('min="' + f.min + '"');
     if (f.max != null) attrs.push('max="' + f.max + '"');
+    // Reserve room for the suffix from its actual length. A fixed padding is
+    // fine for "%" and wrong for "kWh/100km", which then collides with the
+    // number input's spinner.
+    var vars = [];
+    if (f.suffix) vars.push('--suffix-w:' + f.suffix.length + 'ch');
+    if (f.prefix) vars.push('--prefix-w:' + f.prefix.length + 'ch');
+
     return '<div class="field" data-field="' + f.id + '">' +
       '<label for="' + id + '">' + esc(f.label) + '</label>' +
-      '<div class="control' + (f.prefix ? ' has-prefix' : '') + (f.suffix ? ' has-suffix' : '') + '">' +
+      '<div class="control' + (f.prefix ? ' has-prefix' : '') + (f.suffix ? ' has-suffix' : '') + '"' +
+      (vars.length ? ' style="' + vars.join(';') + '"' : '') + '>' +
       (f.prefix ? '<span class="affix pre">' + esc(f.prefix) + '</span>' : '') +
       '<input ' + attrs.join(' ') + '>' +
       (f.suffix ? '<span class="affix post">' + esc(f.suffix) + '</span>' : '') +

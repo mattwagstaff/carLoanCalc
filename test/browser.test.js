@@ -306,6 +306,61 @@ test('browser smoke test', { skip: chromium ? false : 'playwright not installed'
     await page.click('.tab[data-tab="summary"]');
   });
 
+  await t.test('no suffix collides with the number spinner or the typed value', async () => {
+    // The reported bug: "% of drive-away" ran underneath the up/down arrows.
+    // Check every suffixed field that can be shown, not just that one.
+    await page.click('[data-mode="detailed"]');
+
+    const check = () => page.evaluate(() => {
+      const bad = [];
+      document.querySelectorAll('.control.has-suffix').forEach((control) => {
+        const field = control.closest('[data-field]');
+        if (!field || field.hidden) return;
+        const group = field.closest('details');
+        if (group && group.hidden) return;
+        if (group) group.open = true;
+
+        const input = control.querySelector('input');
+        const affix = control.querySelector('.affix.post');
+        const ir = input.getBoundingClientRect();
+        const ar = affix.getBoundingClientRect();
+        if (ar.width === 0) return;
+
+        const name = field.getAttribute('data-field');
+        // The suffix must sit inside the input, clear of the right edge where
+        // the spinner is painted.
+        if (ar.right > ir.right - 12) {
+          bad.push(name + ': suffix overlaps the spinner');
+        }
+        // And the typed value must never run underneath the suffix.
+        const padRight = parseFloat(getComputedStyle(input).paddingRight);
+        if (ir.right - padRight > ar.left + 1) {
+          bad.push(name + ': text area runs under the suffix');
+        }
+        // The suffix must not be clipped by the control.
+        if (ar.left < ir.left) bad.push(name + ': suffix wider than its input');
+      });
+      return bad;
+    });
+
+    // Exercise the states that reveal percentage suffixes.
+    await choose('depositBasis', 'percent');
+    await choose('product', 'gfv');
+    await choose('gfvBasis', 'percent');
+    let problems = await check();
+    assert.deepStrictEqual(problems, [], problems.join('; '));
+
+    // ...and the electric vehicle fields, which carry the longest suffixes.
+    await page.selectOption('#f-fuelType', 'ev');
+    problems = await check();
+    assert.deepStrictEqual(problems, [], problems.join('; '));
+
+    await page.selectOption('#f-fuelType', 'petrol');
+    await choose('gfvBasis', 'amount');
+    await choose('depositBasis', 'amount');
+    await choose('product', 'secured');
+  });
+
   await t.test('inputs persist across a reload', async () => {
     await page.selectOption('#f-termMonths', '84');
     await page.reload();
